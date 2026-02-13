@@ -1,62 +1,67 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const path = require('path');
 
-// Load environment variables
-dotenv.config({ path: './.env' });
+// Import routes
+const authRoutes = require('./routes/authRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const quotationRoutes = require('./routes/quotationRoutes');
+const materialRoutes = require('./routes/materialRoutes');
+const gstRoutes = require('./routes/gstRoutes');
+
+// Debug route imports
+console.log('authRoutes type:', typeof authRoutes);
+console.log('projectRoutes type:', typeof projectRoutes);
+console.log('quotationRoutes type:', typeof quotationRoutes);
+console.log('materialRoutes type:', typeof materialRoutes);
+console.log('gstRoutes type:', typeof gstRoutes);
+
+// Import middleware
+const errorHandler = require('./middleware/errorMiddleware');
+console.log('errorHandler type:', typeof errorHandler);
+console.log('errorHandler:', errorHandler);
 
 const app = express();
 
-// Middleware
+// Body parser
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Enable CORS
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Test route
+// Mount routes
+console.log('Mounting authRoutes...');
+app.use('/api/auth', authRoutes);
+
+console.log('Mounting projectRoutes...');
+app.use('/api/projects', projectRoutes);
+
+console.log('Mounting quotationRoutes...');
+app.use('/api/quotations', quotationRoutes);
+
+console.log('Mounting materialRoutes...');
+app.use('/api/materials', materialRoutes);
+
+console.log('Mounting gstRoutes...');
+app.use('/api/gst', gstRoutes);
+
+// Base route
 app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Welcome to Smart Seller Platform API',
-    status: 'active',
-    version: '1.0.0',
-    timestamp: new Date().toISOString()
-  });
+  res.json({ message: 'Welcome to Smart Seller API' });
 });
 
-// API Routes - Comment out until route files are created
-try {
-  app.use('/api/auth', require('./routes/authRoutes'));
-  app.use('/api/customers', require('./routes/customerRoutes'));
-  app.use('/api/projects', require('./routes/projectRoutes'));
-  app.use('/api/measurements', require('./routes/measurementRoutes'));
-  app.use('/api/materials', require('./routes/materialRoutes'));
-  app.use('/api/quotations', require('./routes/quotationRoutes'));
-  app.use('/api/gst', require('./routes/gstRoutes'));
-  app.use('/api/orders', require('./routes/orderRoutes'));
-  app.use('/api/invoices', require('./routes/invoiceRoutes'));
-  app.use('/api/payments', require('./routes/paymentRoutes'));
-  app.use('/api/reports', require('./routes/reportRoutes'));
-  app.use('/api/chat', require('./routes/chatRoutes'));
-  app.use('/api/notifications', require('./routes/notificationRoutes'));
-} catch (error) {
-  console.log('⚠️ Some routes not yet implemented:', error.message);
-}
+// Error middleware
+console.log('About to mount errorHandler...');
+console.log('errorHandler at mount time:', typeof errorHandler, errorHandler.name);
+app.use(errorHandler);
 
-// Error Handler
-app.use(require('./middleware/errorMiddleware'));
-
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ 
-    message: 'Route not found',
-    path: req.originalUrl 
-  });
-});
+console.log('Error handler mounted successfully');
 
 module.exports = app;

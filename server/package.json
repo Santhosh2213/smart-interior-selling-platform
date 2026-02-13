@@ -1,21 +1,37 @@
 {
   "name": "smart-seller-server",
   "version": "1.0.0",
-  "description": "Smart Seller Platform Backend",
+  "description": "Backend for Smart Seller Platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mongoose": "^7.0.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.0"
+    "cloudinary": "^2.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.1",
+    "pdfkit": "^0.14.0",
+    "razorpay": "^2.8.6",
+    "socket.io": "^4.6.2"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22"
-  }
+    "nodemon": "^3.0.1"
+  },
+  "scripts": {
+  "start": "node server.js",
+  "dev": "nodemon server.js",
+  "seed:seller": "node seeds/sellerSeed.js",
+  "seed:designer": "node seeds/designerSeed.js",
+  "seed:gst": "node seeds/gstSeed.js",
+  "seed:material": "node seeds/materialSeed.js",
+  "seed:all": "npm run seed:seller && npm run seed:designer && npm run seed:gst && npm run seed:material"
+}
 }
