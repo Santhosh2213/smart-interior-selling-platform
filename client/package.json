@@ -1,12 +1,78 @@
 {
-  "name": "smart-seller-client",
-  "version": "0.1.0",
-  "private": true,
+  "name": "client",
+  "version": "1.0.0",
+  "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
+  "main": "postcss.config.js",
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "@headlessui/react": "^1.7.19",
+    "@heroicons/react": "^2.2.0",
+    "@reduxjs/toolkit": "^1.9.7",
+    "asynckit": "^0.4.0",
+    "axios": "^1.13.5",
+    "baseline-browser-mapping": "^2.9.19",
+    "browserslist": "^4.28.1",
+    "call-bind-apply-helpers": "^1.0.2",
+    "caniuse-lite": "^1.0.30001769",
+    "chart.js": "^4.5.1",
+    "clsx": "^2.1.1",
+    "combined-stream": "^1.0.8",
+    "cookie": "^1.1.1",
+    "csstype": "^3.2.3",
+    "debug": "^4.4.3",
+    "delayed-stream": "^1.0.0",
+    "dunder-proto": "^1.0.1",
+    "electron-to-chromium": "^1.5.286",
+    "engine.io-client": "^6.6.4",
+    "engine.io-parser": "^5.2.3",
+    "es-define-property": "^1.0.1",
+    "es-errors": "^1.3.0",
+    "es-object-atoms": "^1.1.1",
+    "es-set-tostringtag": "^2.1.0",
+    "escalade": "^3.2.0",
+    "follow-redirects": "^1.15.11",
+    "fraction.js": "^5.3.4",
+    "function-bind": "^1.1.2",
+    "get-intrinsic": "^1.3.0",
+    "get-proto": "^1.0.1",
+    "goober": "^2.1.18",
+    "gopd": "^1.2.0",
+    "has-symbols": "^1.1.0",
+    "has-tostringtag": "^1.0.2",
+    "hasown": "^2.0.2",
+    "js-tokens": "^4.0.0",
+    "loose-envify": "^1.4.0",
+    "math-intrinsics": "^1.1.0",
+    "mime-db": "^1.52.0",
+    "mime-types": "^2.1.35",
+    "ms": "^2.1.3",
+    "nanoid": "^3.3.11",
+    "node-releases": "^2.0.27",
+    "picocolors": "^1.1.1",
+    "postcss-value-parser": "^4.2.0",
+    "proxy-from-env": "^1.1.0",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.71.1",
+    "react-hot-toast": "^2.6.0",
+    "react-redux": "^8.1.3",
+    "react-router": "^7.13.0",
+    "react-router-dom": "^6.30.3",
+    "react-scripts": "^5.0.1",
+    "redux": "^5.0.1",
+    "redux-thunk": "^3.1.0",
+    "reselect": "^5.1.1",
+    "scheduler": "^0.23.2",
+    "set-cookie-parser": "^2.7.2",
+    "socket.io-client": "^4.8.3",
+    "socket.io-parser": "^4.2.5",
+    "source-map-js": "^1.2.1",
+    "tabbable": "^6.4.0",
+    "tslib": "^2.8.1",
+    "update-browserslist-db": "^1.2.3",
+    "use-sync-external-store": "^1.6.0",
+    "web-vitals": "^2.1.4",
+    "xmlhttprequest-ssl": "^2.1.2"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -14,10 +80,13 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app"
-    ]
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19"
   },
   "browserslist": {
     "production": [
@@ -30,6 +99,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "proxy": "http://localhost:5000"
+  }
 }
