@@ -1,0 +1,297 @@
+smart-seller-platform/
+│
+├── client/                       # React.js Frontend
+│   ├── public/
+│   │   ├── index.html
+│   │   ├── favicon.ico
+│   │   ├── manifest.json
+│   │   └── robots.txt
+│   │
+│   ├── src/
+│   │   ├── assets/
+│   │   │   ├── images/
+│   │   │   │   ├── logo.png
+│   │   │   │   ├── placeholder.jpg
+│   │   │   │   └── icons/
+│   │   │   ├── fonts/
+│   │   │   └── animations/
+│   │   │
+│   │   ├── components/
+│   │   │   ├── common/
+│   │   │   │   ├── Header.jsx
+│   │   │   │   ├── Footer.jsx
+│   │   │   │   ├── Sidebar.jsx
+│   │   │   │   ├── Loader.jsx
+│   │   │   │   ├── ErrorBoundary.jsx
+│   │   │   │   ├── Modal.jsx
+│   │   │   │   ├── Button.jsx
+│   │   │   │   ├── Input.jsx
+│   │   │   │   ├── Card.jsx
+│   │   │   │   ├── Dropdown.jsx
+│   │   │   │   ├── Toast.jsx
+│   │   │   │   └── Pagination.jsx
+│   │   │   │
+│   │   │   ├── customer/
+│   │   │   │   ├── PhotoUploader.jsx
+│   │   │   │   ├── AreaMarker.jsx
+│   │   │   │   ├── MeasurementToggle.jsx
+│   │   │   │   ├── DimensionInput.jsx
+│   │   │   │   ├── MaterialSelector.jsx
+│   │   │   │   ├── GSTBadge.jsx
+│   │   │   │   ├── QuoteSummary.jsx
+│   │   │   │   └── ProjectCard.jsx
+│   │   │   │
+│   │   │   ├── seller/
+│   │   │   │   ├── ProjectQueueCard.jsx
+│   │   │   │   ├── QuoteBuilder.jsx
+│   │   │   │   ├── GSTCalculator.jsx
+│   │   │   │   ├── PriceEditor.jsx
+│   │   │   │   ├── MaterialDatabase.jsx
+│   │   │   │   ├── OrderStatusBadge.jsx
+│   │   │   │   └── InvoiceGenerator.jsx
+│   │   │   │
+│   │   │   ├── designer/
+│   │   │   │   ├── ConsultationCard.jsx
+│   │   │   │   ├── SuggestionForm.jsx
+│   │   │   │   └── MaterialRecommendation.jsx
+│   │   │   │
+│   │   │   ├── charts/
+│   │   │   │   ├── SalesChart.jsx
+│   │   │   │   ├── GSTBreakdownChart.jsx
+│   │   │   │   ├── RevenueChart.jsx
+│   │   │   │   └── MaterialPopularity.jsx
+│   │   │   │
+│   │   │   └── modals/
+│   │   │       ├── ConfirmModal.jsx
+│   │   │       ├── ShareQuoteModal.jsx
+│   │   │       ├── FilterModal.jsx
+│   │   │       └── ImageViewModal.jsx
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── auth/
+│   │   │   │   ├── LandingPage.jsx
+│   │   │   │   ├── CustomerLogin.jsx
+│   │   │   │   ├── CustomerRegister.jsx
+│   │   │   │   ├── SellerLogin.jsx
+│   │   │   │   ├── DesignerLogin.jsx
+│   │   │   │   └── ForgotPassword.jsx
+│   │   │   │
+│   │   │   ├── customer/
+│   │   │   │   ├── Dashboard.jsx
+│   │   │   │   ├── CreateProject.jsx
+│   │   │   │   ├── ProjectDetails.jsx
+│   │   │   │   ├── MaterialSelection.jsx
+│   │   │   │   ├── QuotationView.jsx
+│   │   │   │   ├── EditQuoteRequest.jsx
+│   │   │   │   ├── OrderTracking.jsx
+│   │   │   │   ├── PaymentPage.jsx
+│   │   │   │   ├── InvoiceView.jsx
+│   │   │   │   ├── ProfilePage.jsx
+│   │   │   │   └── ChatPage.jsx
+│   │   │   │
+│   │   │   ├── seller/
+│   │   │   │   ├── Dashboard.jsx
+│   │   │   │   ├── ProjectQueue.jsx
+│   │   │   │   ├── CustomerManagement.jsx
+│   │   │   │   ├── CreateQuotation.jsx
+│   │   │   │   ├── QuotationList.jsx
+│   │   │   │   ├── MaterialDatabase.jsx
+│   │   │   │   ├── AddMaterial.jsx
+│   │   │   │   ├── GSTSettings.jsx
+│   │   │   │   ├── OrderManagement.jsx
+│   │   │   │   ├── InvoiceManagement.jsx
+│   │   │   │   ├── PaymentTracking.jsx
+│   │   │   │   ├── Reports.jsx
+│   │   │   │   └── BusinessSettings.jsx
+│   │   │   │
+│   │   │   ├── designer/
+│   │   │   │   ├── Dashboard.jsx
+│   │   │   │   ├── ConsultationQueue.jsx
+│   │   │   │   ├── ProjectConsultation.jsx
+│   │   │   │   └── DesignSuggestions.jsx
+│   │   │   │
+│   │   │   └── common/
+│   │   │       ├── ChatInterface.jsx
+│   │   │       ├── Notifications.jsx
+│   │   │       ├── HelpCenter.jsx
+│   │   │       └── TermsConditions.jsx
+│   │   │
+│   │   ├── routes/
+│   │   │   ├── AppRoutes.jsx
+│   │   │   ├── PrivateRoute.jsx
+│   │   │   ├── PublicRoute.jsx
+│   │   │   ├── CustomerRoute.jsx
+│   │   │   ├── SellerRoute.jsx
+│   │   │   └── DesignerRoute.jsx
+│   │   │
+│   │   ├── services/
+│   │   │   ├── api.js                # Axios configuration
+│   │   │   ├── authService.js
+│   │   │   ├── customerService.js
+│   │   │   ├── projectService.js
+│   │   │   ├── quotationService.js
+│   │   │   ├── materialService.js
+│   │   │   ├── orderService.js
+│   │   │   ├── invoiceService.js
+│   │   │   ├── paymentService.js
+│   │   │   ├── reportService.js
+│   │   │   └── chatService.js
+│   │   │
+│   │   ├── context/
+│   │   │   ├── AuthContext.js
+│   │   │   ├── ProjectContext.js
+│   │   │   ├── QuoteContext.js
+│   │   │   ├── CartContext.js
+│   │   │   ├── ThemeContext.js
+│   │   │   └── NotificationContext.js
+│   │   │
+│   │   ├── hooks/
+│   │   │   ├── useAuth.js
+│   │   │   ├── useProjects.js
+│   │   │   ├── useQuotations.js
+│   │   │   ├── useMaterials.js
+│   │   │   ├── useGST.js
+│   │   │   ├── useMeasurements.js
+│   │   │   ├── useOrders.js
+│   │   │   ├── usePayments.js
+│   │   │   └── useSocket.js
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── constants/
+│   │   │   │   ├── roles.js
+│   │   │   │   ├── materialTypes.js
+│   │   │   │   ├── gstRates.js
+│   │   │   │   ├── measurementUnits.js
+│   │   │   │   ├── orderStatus.js
+│   │   │   │   └── paymentStatus.js
+│   │   │   │
+│   │   │   ├── helpers/
+│   │   │   │   ├── measurementConverter.js
+│   │   │   │   ├── areaCalculator.js
+│   │   │   │   ├── gstCalculator.js
+│   │   │   │   ├── priceFormatter.js
+│   │   │   │   ├── dateFormatter.js
+│   │   │   │   └── validators.js
+│   │   │   │
+│   │   │   ├── generators/
+│   │   │   │   ├── pdfGenerator.js
+│   │   │   │   ├── invoiceGenerator.js
+│   │   │   │   └── quoteGenerator.js
+│   │   │   │
+│   │   │   └── imageProcessor.js
+│   │   │
+│   │   ├── styles/
+│   │   │   ├── global.css
+│   │   │   ├── variables.css
+│   │   │   ├── tailwind.css
+│   │   │   └── modules/
+│   │   │       ├── auth.module.css
+│   │   │       ├── dashboard.module.css
+│   │   │       └── quotation.module.css
+│   │   │
+│   │   ├── App.jsx
+│   │   ├── index.js
+│   │   └── reportWebVitals.js
+│   │
+│   ├── .env
+│   ├── .env.example
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   └── README.md
+│
+├── server/                       # Node.js/Express Backend
+│   ├── config/
+│   │   ├── db.js                # MongoDB connection
+│   │   ├── passport.js          # JWT authentication
+│   │   ├── cloudinary.js        # Image upload config
+│   │   ├── razorpay.js          # Payment gateway
+│   │   ├── email.js            # Nodemailer config
+│   │   └── socket.js           # Socket.io setup
+│   │
+│   ├── models/
+│   │   ├── User.js
+│   │   ├── Customer.js
+│   │   ├── Seller.js           # Single seller
+│   │   ├── Designer.js         # Single designer
+│   │   ├── Project.js
+│   │   ├── ProjectImage.js     # Wall photos with annotations
+│   │   ├── Measurement.js      # Area dimensions
+│   │   ├── Material.js
+│   │   ├── GSTCategory.js      # Material-wise GST rates
+│   │   ├── Quotation.js
+│   │   ├── QuotationVersion.js # Edit history
+│   │   ├── Order.js
+│   │   ├── Invoice.js
+│   │   ├── Payment.js
+│   │   ├── Chat.js
+│   │   └── Notification.js
+│   │
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── customerController.js
+│   │   ├── projectController.js
+│   │   ├── measurementController.js
+│   │   ├── materialController.js
+│   │   ├── quotationController.js
+│   │   ├── gstController.js
+│   │   ├── orderController.js
+│   │   ├── invoiceController.js
+│   │   ├── paymentController.js
+│   │   ├── reportController.js
+│   │   ├── chatController.js
+│   │   └── notificationController.js
+│   │
+│   ├── routes/
+│   │   ├── authRoutes.js
+│   │   ├── customerRoutes.js
+│   │   ├── projectRoutes.js
+│   │   ├── measurementRoutes.js
+│   │   ├── materialRoutes.js
+│   │   ├── quotationRoutes.js
+│   │   ├── gstRoutes.js
+│   │   ├── orderRoutes.js
+│   │   ├── invoiceRoutes.js
+│   │   ├── paymentRoutes.js
+│   │   ├── reportRoutes.js
+│   │   ├── chatRoutes.js
+│   │   └── notificationRoutes.js
+│   │
+│   ├── middleware/
+│   │   ├── authMiddleware.js    # JWT verification
+│   │   ├── roleMiddleware.js    # Role-based access
+│   │   ├── errorMiddleware.js   # Error handler
+│   │   ├── uploadMiddleware.js  # Multer config
+│   │   └── validationMiddleware.js
+│   │
+│   ├── utils/
+│   │   ├── generateToken.js
+│   │   ├── sendEmail.js
+│   │   ├── sendSMS.js
+│   │   ├── generatePDF.js
+│   │   ├── gstCalculator.js
+│   │   ├── measurementConverter.js
+│   │   ├── imageProcessor.js
+│   │   └── helpers.js
+│   │
+│   ├── validations/
+│   │   ├── authValidation.js
+│   │   ├── projectValidation.js
+│   │   ├── quotationValidation.js
+│   │   └── orderValidation.js
+│   │
+│   ├── seeds/
+│   │   ├── sellerSeed.js        # Create fixed seller account
+│   │   ├── designerSeed.js      # Create fixed designer account
+│   │   ├── gstSeed.js          # Pre-populate GST rates
+│   │   └── materialSeed.js     # Sample materials
+│   │
+│   ├── .env
+│   ├── .env.example
+│   ├── server.js
+│   ├── app.js
+│   └── package.json
+│
+├── .gitignore
+├── README.md
+└── docker-compose.yml          # Optional: Docker setup
