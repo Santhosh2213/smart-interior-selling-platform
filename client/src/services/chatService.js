@@ -1,37 +1,29 @@
 import api from './api';
 
 export const chatService = {
-  // Get conversations
+  // Get user conversations
   getConversations: async () => {
     const response = await api.get('/chat/conversations');
     return response.data;
   },
 
-  // Get messages for a conversation
-  getMessages: async (conversationId) => {
-    const response = await api.get(`/chat/messages/${conversationId}`);
+  // Get messages for a project
+  getMessages: async (projectId) => {
+    const response = await api.get(`/chat/project/${projectId}`);
     return response.data;
   },
 
   // Send message
-  sendMessage: async (formData) => {
-    const response = await api.post('/chat/messages', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+  sendMessage: async (messageData) => {
+    const response = await api.post('/chat', messageData);
     return response.data;
   },
 
   // Mark messages as read
-  markAsRead: async (conversationId) => {
-    const response = await api.patch(`/chat/conversations/${conversationId}/read`);
-    return response.data;
-  },
-
-  // Get unread count
-  getUnreadCount: async () => {
-    const response = await api.get('/chat/unread');
+  markAsRead: async (projectId) => {
+    const response = await api.put(`/chat/read/${projectId}`);
     return response.data;
   }
 };
+
+export default chatService;

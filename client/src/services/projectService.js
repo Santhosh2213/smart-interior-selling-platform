@@ -13,6 +13,12 @@ export const projectService = {
     return response.data;
   },
 
+  // Get seller project queue
+  getSellerProjectQueue: async () => {
+    const response = await api.get('/projects/seller/queue');
+    return response.data;
+  },
+
   // Get single project
   getProjectById: async (id) => {
     const response = await api.get(`/projects/${id}`);
@@ -40,6 +46,18 @@ export const projectService = {
   // Submit project
   submitProject: async (id) => {
     const response = await api.put(`/projects/${id}/submit`);
+    return response.data;
+  },
+
+  // Assign seller
+  assignSeller: async (projectId, sellerId) => {
+    const response = await api.put(`/projects/${projectId}/assign-seller`, { sellerId });
+    return response.data;
+  },
+
+  // Assign designer
+  assignDesigner: async (projectId, designerId) => {
+    const response = await api.put(`/projects/${projectId}/assign-designer`, { designerId });
     return response.data;
   }
 };

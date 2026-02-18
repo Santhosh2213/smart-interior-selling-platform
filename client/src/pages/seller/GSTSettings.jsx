@@ -1,65 +1,96 @@
 import React, { useState, useEffect } from 'react';
-import { gstService } from '../../services/gstService';
-import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import Loader from '../../components/common/Loader';
+import { PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-// ... rest of the code remains the same
+import api from '../../services/api';
+import Loader from '../../components/common/Loader';
 
 const GSTSettings = () => {
+  const [gstRates, setGstRates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [gstCategories, setGstCategories] = useState([]);
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
+  const [showModal, setShowModal] = useState(false);
+  const [editingGst, setEditingGst] = useState(null);
+  const [formData, setFormData] = useState({
+    materialCategory: '',
+    hsnCode: '',
+    cgst: '',
+    sgst: '',
+    igst: '',
+    description: ''
+  });
 
   useEffect(() => {
-    fetchGSTCategories();
+    fetchGSTRates();
   }, []);
 
-  const fetchGSTCategories = async () => {
+  const fetchGSTRates = async () => {
     try {
-      const response = await gstService.getGSTCategories();
-      setGstCategories(response.data);
+      const response = await api.get('/gst');
+      setGstRates(response.data.data || []);
     } catch (error) {
-      toast.error('Failed to load GST settings');
+      toast.error('Failed to load GST rates');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (category) => {
-    setEditingId(category._id);
-    setEditForm({
-      cgst: category.cgst,
-      sgst: category.sgst,
-      igst: category.igst,
-      hsnCode: category.hsnCode
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
     });
   };
 
-  const handleCancel = () => {
-    setEditingId(null);
-    setEditForm({});
-  };
-
-  const handleSave = async (id) => {
-    setSaving(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      await gstService.updateGSTCategory(id, editForm);
-      toast.success('GST rate updated successfully');
-      fetchGSTCategories();
-      setEditingId(null);
+      if (editingGst) {
+        await api.put(`/gst/${editingGst._id}`, formData);
+        toast.success('GST rate updated successfully');
+      } else {
+        await api.post('/gst', formData);
+        toast.success('GST rate added successfully');
+      }
+      setShowModal(false);
+      resetForm();
+      fetchGSTRates();
     } catch (error) {
-      toast.error('Failed to update GST rate');
-    } finally {
-      setSaving(false);
+      toast.error(error.response?.data?.error || 'Operation failed');
     }
   };
 
-  const handleChange = (field, value) => {
-    setEditForm({
-      ...editForm,
-      [field]: parseFloat(value) || 0
+  const handleEdit = (gst) => {
+    setEditingGst(gst);
+    setFormData({
+      materialCategory: gst.materialCategory,
+      hsnCode: gst.hsnCode,
+      cgst: gst.cgst,
+      sgst: gst.sgst,
+      igst: gst.igst,
+      description: gst.description || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this GST rate?')) return;
+    try {
+      await api.delete(`/gst/${id}`);
+      toast.success('GST rate deleted successfully');
+      fetchGSTRates();
+    } catch (error) {
+      toast.error('Failed to delete GST rate');
+    }
+  };
+
+  const resetForm = () => {
+    setEditingGst(null);
+    setFormData({
+      materialCategory: '',
+      hsnCode: '',
+      cgst: '',
+      sgst: '',
+      igst: '',
+      description: ''
     });
   };
 
@@ -72,141 +103,223 @@ const GSTSettings = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* Header */}
-      <div className="mb-8">
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">GST Settings</h1>
-        <p className="text-gray-600">Manage GST rates for different material categories</p>
+        <button
+          onClick={() => {
+            resetForm();
+            setShowModal(true);
+          }}
+          className="btn-primary flex items-center"
+        >
+          <PlusIcon className="h-5 w-5 mr-2" />
+          Add GST Rate
+        </button>
       </div>
 
-      {/* GST Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">HSN Code</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CGST (%)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SGST (%)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IGST (%)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Category
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                HSN Code
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                CGST (%)
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                SGST (%)
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                IGST (%)
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {gstCategories.map((category) => (
-              <tr key={category._id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="font-medium capitalize">{category.materialCategory}</span>
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingId === category._id ? (
-                    <input
-                      type="text"
-                      value={editForm.hsnCode || ''}
-                      onChange={(e) => handleChange('hsnCode', e.target.value)}
-                      className="w-24 px-2 py-1 border rounded text-sm"
-                    />
-                  ) : (
-                    <span className="text-sm">{category.hsnCode}</span>
-                  )}
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingId === category._id ? (
-                    <input
-                      type="number"
-                      value={editForm.cgst}
-                      onChange={(e) => handleChange('cgst', e.target.value)}
-                      className="w-16 px-2 py-1 border rounded text-sm"
-                      min="0"
-                      max="50"
-                      step="0.1"
-                    />
-                  ) : (
-                    <span className="text-sm">{category.cgst}%</span>
-                  )}
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingId === category._id ? (
-                    <input
-                      type="number"
-                      value={editForm.sgst}
-                      onChange={(e) => handleChange('sgst', e.target.value)}
-                      className="w-16 px-2 py-1 border rounded text-sm"
-                      min="0"
-                      max="50"
-                      step="0.1"
-                    />
-                  ) : (
-                    <span className="text-sm">{category.sgst}%</span>
-                  )}
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingId === category._id ? (
-                    <input
-                      type="number"
-                      value={editForm.igst}
-                      onChange={(e) => handleChange('igst', e.target.value)}
-                      className="w-16 px-2 py-1 border rounded text-sm"
-                      min="0"
-                      max="50"
-                      step="0.1"
-                    />
-                  ) : (
-                    <span className="text-sm">{category.igst}%</span>
-                  )}
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="font-medium">{category.cgst + category.sgst}%</span>
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingId === category._id ? (
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleSave(category._id)}
-                        disabled={saving}
-                        className="text-green-600 hover:text-green-700"
-                      >
-                        <CheckIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={handleCancel}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                      </button>
+            {gstRates.length > 0 ? (
+              gstRates.map((gst) => (
+                <tr key={gst._id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900 capitalize">
+                      {gst.materialCategory}
                     </div>
-                  ) : (
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{gst.hsnCode}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{gst.cgst}%</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{gst.sgst}%</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{gst.igst}%</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => handleEdit(category)}
-                      className="text-primary-600 hover:text-primary-700"
+                      onClick={() => handleEdit(gst)}
+                      className="text-primary-600 hover:text-primary-900 mr-3"
                     >
-                      <PencilIcon className="h-4 w-4" />
+                      <PencilIcon className="h-5 w-5" />
                     </button>
-                  )}
+                    <button
+                      onClick={() => handleDelete(gst._id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  No GST rates found. Click "Add GST Rate" to create one.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Info Box */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-blue-800 mb-2">About GST Settings</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• GST rates are applied based on material category</li>
-          <li>• CGST and SGST are half of the total GST rate (for intra-state sales)</li>
-          <li>• IGST is the total GST rate (for inter-state sales)</li>
-          <li>• Changes will affect all future quotations</li>
-        </ul>
-      </div>
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">
+              {editingGst ? 'Edit GST Rate' : 'Add GST Rate'}
+            </h2>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Material Category
+                  </label>
+                  <select
+                    name="materialCategory"
+                    value={formData.materialCategory}
+                    onChange={handleInputChange}
+                    required
+                    className="input-field"
+                  >
+                    <option value="">Select Category</option>
+                    <option value="tiles">Tiles</option>
+                    <option value="wood">Wood</option>
+                    <option value="glass">Glass</option>
+                    <option value="paints">Paints</option>
+                    <option value="hardware">Hardware</option>
+                    <option value="others">Others</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    HSN Code
+                  </label>
+                  <input
+                    type="text"
+                    name="hsnCode"
+                    value={formData.hsnCode}
+                    onChange={handleInputChange}
+                    required
+                    className="input-field"
+                    placeholder="e.g., 6907"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      CGST (%)
+                    </label>
+                    <input
+                      type="number"
+                      name="cgst"
+                      value={formData.cgst}
+                      onChange={handleInputChange}
+                      required
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SGST (%)
+                    </label>
+                    <input
+                      type="number"
+                      name="sgst"
+                      value={formData.sgst}
+                      onChange={handleInputChange}
+                      required
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      IGST (%)
+                    </label>
+                    <input
+                      type="number"
+                      name="igst"
+                      value={formData.igst}
+                      onChange={handleInputChange}
+                      required
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    rows="3"
+                    className="input-field"
+                    placeholder="Additional details about this GST category"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                >
+                  {editingGst ? 'Update' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

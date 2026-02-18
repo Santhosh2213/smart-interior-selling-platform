@@ -1,136 +1,208 @@
 import React, { useState, useCallback } from 'react';
-import { PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useDropzone } from 'react-dropzone';
+import { 
+  PhotoIcon, 
+  XMarkIcon,
+  ArrowUpTrayIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon 
+} from '@heroicons/react/24/outline';
+import { imageService } from '../../services/imageService';
+import Loader from '../common/Loader';
 import toast from 'react-hot-toast';
 
-const PhotoUploader = ({ onUpload, maxFiles = 5, existingImages = [] }) => {
-  const [images, setImages] = useState(existingImages);
+const PhotoUploader = ({ projectId, onUploadComplete }) => {
   const [uploading, setUploading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
 
-  const onDrop = useCallback(async (acceptedFiles) => {
-    if (images.length + acceptedFiles.length > maxFiles) {
-      toast.error(`You can only upload up to ${maxFiles} images`);
-      return;
+  const onDrop = useCallback((acceptedFiles, rejectedFiles) => {
+    // Handle rejected files
+    if (rejectedFiles.length > 0) {
+      rejectedFiles.forEach(file => {
+        file.errors.forEach(error => {
+          if (error.code === 'file-too-large') {
+            toast.error(`${file.file.name} is too large. Max size is 5MB`);
+          } else if (error.code === 'file-invalid-type') {
+            toast.error(`${file.file.name} is not a valid image file`);
+          }
+        });
+      });
     }
 
-    setUploading(true);
-    
-    for (const file of acceptedFiles) {
-      // Create preview
-      const preview = URL.createObjectURL(file);
-      const newImage = {
-        file,
-        preview,
-        uploading: true,
-        annotations: []
-      };
-      
-      setImages(prev => [...prev, newImage]);
-      
-      // Upload to server
-      try {
-        const formData = new FormData();
-        formData.append('image', file);
-        
-        // TODO: Call API to upload image
-        // const response = await api.post('/upload', formData);
-        
-        // Simulate upload
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        setImages(prev => prev.map(img => 
-          img.preview === preview 
-            ? { ...img, uploading: false, url: 'uploaded-url' }
-            : img
-        ));
-        
-        if (onUpload) onUpload(file);
-      } catch (error) {
-        toast.error('Failed to upload image');
-        setImages(prev => prev.filter(img => img.preview !== preview));
-      }
-    }
-    
-    setUploading(false);
-  }, [images.length, maxFiles, onUpload]);
+    // Create previews for accepted files
+    const newPreviews = acceptedFiles.map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+      id: Math.random().toString(36).substr(2, 9)
+    }));
+
+    setPreviews(prev => [...prev, ...newPreviews]);
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.gif']
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp']
     },
     maxSize: 5 * 1024 * 1024, // 5MB
-    disabled: uploading
+    multiple: true
   });
 
-  const removeImage = (index) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const removePreview = (id) => {
+    setPreviews(prev => {
+      const filtered = prev.filter(p => p.id !== id);
+      // Revoke object URL to free memory
+      const removed = prev.find(p => p.id === id);
+      if (removed) {
+        URL.revokeObjectURL(removed.preview);
+      }
+      return filtered;
+    });
+  };
+
+  const handleUpload = async () => {
+    if (previews.length === 0) {
+      toast.error('Please select images to upload');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      previews.forEach(preview => {
+        formData.append('images', preview.file);
+      });
+
+      const response = await imageService.uploadImages(projectId, formData);
+      
+      // Clean up previews
+      previews.forEach(preview => {
+        URL.revokeObjectURL(preview.preview);
+      });
+
+      setUploadedFiles(response.data);
+      setPreviews([]);
+      
+      toast.success(`${response.data.length} images uploaded successfully`);
+      
+      if (onUploadComplete) {
+        onUploadComplete(response.data);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.error || 'Failed to upload images');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const clearAll = () => {
+    previews.forEach(preview => {
+      URL.revokeObjectURL(preview.preview);
+    });
+    setPreviews([]);
   };
 
   return (
     <div className="space-y-4">
-      {/* Upload Area */}
+      {/* Dropzone */}
       <div
         {...getRootProps()}
-        className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-          transition-colors duration-200
-          ${isDragActive ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400'}
-          ${uploading ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
+        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+          ${isDragActive 
+            ? 'border-primary-500 bg-primary-50' 
+            : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
+          }`}
       >
         <input {...getInputProps()} />
-        <PhotoIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+        <PhotoIcon className={`h-12 w-12 mx-auto mb-3 ${isDragActive ? 'text-primary-500' : 'text-gray-400'}`} />
+        
         {isDragActive ? (
-          <p className="text-primary-600">Drop the files here...</p>
+          <p className="text-primary-600">Drop the images here...</p>
         ) : (
           <>
             <p className="text-gray-600 mb-1">
-              Drag & drop photos here, or click to select
+              Drag & drop images here, or click to select
             </p>
             <p className="text-sm text-gray-500">
-              Max {maxFiles} images, up to 5MB each
+              Supported formats: JPG, PNG, GIF, WEBP (Max 5MB each)
             </p>
           </>
         )}
       </div>
 
-      {/* Image Preview Grid */}
-      {images.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {images.map((image, index) => (
-            <div key={index} className="relative group">
-              <img
-                src={image.preview || image.url}
-                alt={`Upload ${index + 1}`}
-                className="w-full h-32 object-cover rounded-lg"
-              />
-              
-              {/* Uploading Overlay */}
-              {image.uploading && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                </div>
-              )}
+      {/* Preview Grid */}
+      {previews.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-medium text-gray-900">
+              Selected Images ({previews.length})
+            </h3>
+            <button
+              onClick={clearAll}
+              className="text-sm text-red-600 hover:text-red-700"
+            >
+              Clear all
+            </button>
+          </div>
 
-              {/* Remove Button */}
-              {!image.uploading && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {previews.map((preview) => (
+              <div key={preview.id} className="relative group">
+                <img
+                  src={preview.preview}
+                  alt="Preview"
+                  className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                />
                 <button
-                  onClick={() => removeImage(index)}
-                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => removePreview(preview.id)}
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Remove"
                 >
                   <XMarkIcon className="h-4 w-4" />
                 </button>
-              )}
-
-              {/* Annotation Badge */}
-              {image.annotations?.length > 0 && (
-                <div className="absolute bottom-2 left-2 bg-primary-600 text-white text-xs px-2 py-1 rounded">
-                  {image.annotations.length} areas marked
+                <div className="absolute bottom-1 left-1 bg-black bg-opacity-50 text-white text-xs px-1 rounded">
+                  {(preview.file.size / 1024 / 1024).toFixed(2)} MB
                 </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Upload Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="btn-primary flex items-center disabled:opacity-50"
+            >
+              {uploading ? (
+                <>
+                  <Loader size="sm" />
+                  <span className="ml-2">Uploading...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowUpTrayIcon className="h-5 w-5 mr-2" />
+                  Upload {previews.length} {previews.length === 1 ? 'Image' : 'Images'}
+                </>
               )}
-            </div>
-          ))}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Uploaded Files Summary */}
+      {uploadedFiles.length > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center text-green-800 mb-2">
+            <CheckCircleIcon className="h-5 w-5 mr-2" />
+            <span className="font-medium">Upload Complete!</span>
+          </div>
+          <p className="text-sm text-green-700">
+            {uploadedFiles.length} {uploadedFiles.length === 1 ? 'image' : 'images'} uploaded successfully
+          </p>
         </div>
       )}
     </div>

@@ -4,14 +4,16 @@ import { projectService } from '../../services/projectService';
 import { 
   ArrowLeftIcon, 
   PlusIcon, 
-  PhotoIcon,
   DocumentTextIcon,
   ClockIcon,
   CheckCircleIcon,
   PencilIcon,
   TrashIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  PhotoIcon 
 } from '@heroicons/react/24/outline';
+import PhotoUploader from '../../components/customer/PhotoUploader';
+import ImageGallery from '../../components/customer/ImageGallery';
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
 
@@ -21,6 +23,7 @@ const ProjectDetails = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddMeasurement, setShowAddMeasurement] = useState(false);
+  const [showPhotoUploader, setShowPhotoUploader] = useState(false);
   const [measurementData, setMeasurementData] = useState({
     areaName: '',
     length: '',
@@ -78,6 +81,11 @@ const ProjectDetails = () => {
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to submit project');
     }
+  };
+
+  const handleDeleteMeasurement = async (measurementId) => {
+    // Implement delete measurement functionality if needed
+    toast.error('Delete measurement functionality to be implemented');
   };
 
   const getStatusColor = (status) => {
@@ -148,8 +156,9 @@ const ProjectDetails = () => {
               </Link>
               <button
                 onClick={handleSubmitProject}
-                disabled={project.measurements?.length === 0}
+                disabled={!project.measurements || project.measurements.length === 0}
                 className="btn-primary flex items-center disabled:opacity-50"
+                title={!project.measurements || project.measurements.length === 0 ? 'Add at least one measurement first' : ''}
               >
                 <CheckCircleIcon className="h-4 w-4 mr-1" />
                 Submit for Quote
@@ -157,9 +166,9 @@ const ProjectDetails = () => {
             </>
           )}
 
-          {project.status === 'quoted' && (
+          {project.status === 'quoted' && project.quotations && project.quotations.length > 0 && (
             <Link
-              to={`/customer/quotation/${project.quotations?.[0]?._id}`}
+              to={`/customer/quotation/${project.quotations[0]._id}`}
               className="btn-primary flex items-center"
             >
               <DocumentTextIcon className="h-4 w-4 mr-1" />
@@ -211,11 +220,11 @@ const ProjectDetails = () => {
           <h2 className="text-lg font-semibold">Area Measurements</h2>
           {project.status === 'draft' && (
             <button
-              onClick={() => setShowAddMeasurement(true)}
+              onClick={() => setShowAddMeasurement(!showAddMeasurement)}
               className="btn-primary flex items-center text-sm"
             >
               <PlusIcon className="h-4 w-4 mr-1" />
-              Add Measurement
+              {showAddMeasurement ? 'Cancel' : 'Add Measurement'}
             </button>
           )}
         </div>
@@ -228,7 +237,7 @@ const ProjectDetails = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Area Name
+                    Area Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -259,7 +268,7 @@ const ProjectDetails = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Length
+                    Length <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -275,7 +284,7 @@ const ProjectDetails = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Width
+                    Width <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -328,6 +337,11 @@ const ProjectDetails = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Area (sq m)
                   </th>
+                  {project.status === 'draft' && (
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -353,6 +367,16 @@ const ProjectDetails = () => {
                         {measurement.areaSqM?.toFixed(2)}
                       </div>
                     </td>
+                    {project.status === 'draft' && (
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => handleDeleteMeasurement(measurement._id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -379,39 +403,31 @@ const ProjectDetails = () => {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Photos</h2>
           {project.status === 'draft' && (
-            <button className="btn-primary flex items-center text-sm">
+            <button
+              onClick={() => setShowPhotoUploader(!showPhotoUploader)}
+              className="btn-primary flex items-center text-sm"
+            >
               <PhotoIcon className="h-4 w-4 mr-1" />
-              Upload Photos
+              {showPhotoUploader ? 'Hide Uploader' : 'Upload Photos'}
             </button>
           )}
         </div>
 
-        {project.images && project.images.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {project.images.map((image) => (
-              <div key={image._id} className="relative group">
-                <img
-                  src={image.imageUrl}
-                  alt="Project"
-                  className="w-full h-32 object-cover rounded-lg"
-                />
-                <button className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <PhotoIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-500">No photos uploaded yet</p>
-            {project.status === 'draft' && (
-              <p className="text-sm text-gray-400 mt-2">
-                Upload photos to help sellers provide accurate quotations
-              </p>
-            )}
+        {/* Photo Uploader */}
+        {showPhotoUploader && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <PhotoUploader 
+              projectId={id} 
+              onUploadComplete={() => {
+                setShowPhotoUploader(false);
+                fetchProject(); // Refresh project data
+              }}
+            />
           </div>
         )}
+
+        {/* Image Gallery */}
+        <ImageGallery projectId={id} onImageChange={fetchProject} />
       </div>
     </div>
   );
