@@ -1,5 +1,7 @@
 const Project = require('../models/Project');
 const Customer = require('../models/Customer');
+const Seller = require('../models/Seller'); // Add this import
+const Designer = require('../models/Designer'); // Add this import
 const Measurement = require('../models/Measurement');
 const ProjectImage = require('../models/ProjectImage');
 const mongoose = require('mongoose');
@@ -78,12 +80,63 @@ exports.getCustomerProjects = async (req, res) => {
   }
 };
 
+// @desc    Get all projects for seller (Project Queue)
+// @route   GET /api/projects/seller/queue
+// @access  Private (Seller)
+exports.getSellerProjectQueue = async (req, res) => {
+  try {
+    const seller = await Seller.findOne({ userId: req.user.id });
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        error: 'Seller profile not found'
+      });
+    }
+
+    const projects = await Project.find({ 
+      $or: [
+        { assignedSeller: seller._id },
+        { status: 'pending', assignedSeller: null }
+      ]
+    })
+      .populate({
+        path: 'customerId',
+        populate: {
+          path: 'userId',
+          select: 'name email phone'
+        }
+      })
+      .populate('measurements')
+      .populate('images')
+      .sort('-createdAt');
+
+    res.status(200).json({
+      success: true,
+      count: projects.length,
+      data: projects
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+};
+
 // @desc    Get single project
 // @route   GET /api/projects/:id
 // @access  Private
 exports.getProjectById = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)
+      .populate({
+        path: 'customerId',
+        populate: {
+          path: 'userId',
+          select: 'name email phone'
+        }
+      })
       .populate('measurements')
       .populate('images')
       .populate({
@@ -92,7 +145,6 @@ exports.getProjectById = async (req, res) => {
           path: 'items.materialId'
         }
       })
-      .populate('customerId')
       .populate('assignedDesigner')
       .populate('assignedSeller');
 
@@ -103,16 +155,26 @@ exports.getProjectById = async (req, res) => {
       });
     }
 
-    // Check authorization
-    const customer = await Customer.findOne({ userId: req.user.id });
-    const seller = await Seller.findOne({ userId: req.user.id });
-    const designer = await Designer.findOne({ userId: req.user.id });
+    // Check authorization based on user role
+    let isAuthorized = false;
 
-    const isCustomer = customer && project.customerId.toString() === customer._id.toString();
-    const isSeller = seller && (project.assignedSeller?.toString() === seller._id.toString() || req.user.role === 'seller');
-    const isDesigner = designer && (project.assignedDesigner?.toString() === designer._id.toString() || req.user.role === 'designer');
+    if (req.user.role === 'customer') {
+      const customer = await Customer.findOne({ userId: req.user.id });
+      isAuthorized = customer && project.customerId._id.toString() === customer._id.toString();
+    } 
+    else if (req.user.role === 'seller') {
+      const seller = await Seller.findOne({ userId: req.user.id });
+      isAuthorized = seller && (
+        project.assignedSeller?.toString() === seller._id.toString() || 
+        project.status === 'pending'
+      );
+    }
+    else if (req.user.role === 'designer') {
+      const designer = await Designer.findOne({ userId: req.user.id });
+      isAuthorized = designer && project.assignedDesigner?.toString() === designer._id.toString();
+    }
 
-    if (!isCustomer && !isSeller && !isDesigner && req.user.role !== 'admin') {
+    if (!isAuthorized) {
       return res.status(403).json({
         success: false,
         error: 'Not authorized to view this project'
@@ -155,6 +217,14 @@ exports.updateProject = async (req, res) => {
       });
     }
 
+    // Only allow updates if project is in draft status
+    if (project.status !== 'draft') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot update project after submission'
+      });
+    }
+
     project = await Project.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -194,6 +264,14 @@ exports.deleteProject = async (req, res) => {
       return res.status(403).json({
         success: false,
         error: 'Not authorized to delete this project'
+      });
+    }
+
+    // Only allow deletion if project is in draft status
+    if (project.status !== 'draft') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete project after submission'
       });
     }
 
@@ -243,6 +321,14 @@ exports.addMeasurement = async (req, res) => {
       return res.status(403).json({
         success: false,
         error: 'Not authorized to modify this project'
+      });
+    }
+
+    // Only allow adding measurements if project is in draft status
+    if (project.status !== 'draft') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot add measurements after project submission'
       });
     }
 
@@ -308,21 +394,111 @@ exports.submitProject = async (req, res) => {
       });
     }
 
+    // Check if project is already submitted
+    if (project.status !== 'draft') {
+      return res.status(400).json({
+        success: false,
+        error: 'Project has already been submitted'
+      });
+    }
+
     project.status = 'pending';
     project.submittedAt = Date.now();
     await project.save();
 
-    // TODO: Assign to seller (for now, auto-assign to first seller)
+    // Auto-assign to first available seller (you can modify this logic)
     const seller = await Seller.findOne();
     if (seller) {
       project.assignedSeller = seller._id;
       await project.save();
+      
+      // TODO: Create notification for seller
     }
 
     res.status(200).json({
       success: true,
       data: project,
       message: 'Project submitted successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+};
+
+// @desc    Assign project to seller
+// @route   PUT /api/projects/:id/assign-seller
+// @access  Private (Admin/Seller)
+exports.assignSeller = async (req, res) => {
+  try {
+    const { sellerId } = req.body;
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        error: 'Seller not found'
+      });
+    }
+
+    project.assignedSeller = sellerId;
+    await project.save();
+
+    res.status(200).json({
+      success: true,
+      data: project,
+      message: 'Seller assigned successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+};
+
+// @desc    Assign project to designer
+// @route   PUT /api/projects/:id/assign-designer
+// @access  Private (Admin/Seller)
+exports.assignDesigner = async (req, res) => {
+  try {
+    const { designerId } = req.body;
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const designer = await Designer.findById(designerId);
+    if (!designer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Designer not found'
+      });
+    }
+
+    project.assignedDesigner = designerId;
+    await project.save();
+
+    res.status(200).json({
+      success: true,
+      data: project,
+      message: 'Designer assigned successfully'
     });
   } catch (error) {
     console.error(error);

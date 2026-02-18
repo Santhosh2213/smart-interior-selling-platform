@@ -10,19 +10,28 @@ const projectImageSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  publicId: String,
+  publicId: {
+    type: String,
+    required: true
+  },
   annotations: [{
     x: Number,
     y: Number,
     width: Number,
     height: Number,
     areaName: String,
-    areaSqFt: Number,
-    areaSqM: Number
+    areaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Measurement'
+    }
   }],
   isMain: {
     type: Boolean,
     default: false
+  },
+  uploadedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   timestamps: true

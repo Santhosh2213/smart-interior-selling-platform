@@ -6,18 +6,39 @@ const quotationItemSchema = new mongoose.Schema({
     ref: 'Material',
     required: true
   },
-  materialName: String,
+  materialName: {
+    type: String,
+    required: true
+  },
   quantity: {
     type: Number,
     required: true,
     min: 0.01
   },
-  unit: String,
-  pricePerUnit: Number,
-  subtotal: Number,
-  gstRate: Number,
-  gstAmount: Number,
-  total: Number
+  unit: {
+    type: String,
+    required: true
+  },
+  pricePerUnit: {
+    type: Number,
+    required: true
+  },
+  subtotal: {
+    type: Number,
+    required: true
+  },
+  gstRate: {
+    type: Number,
+    required: true
+  },
+  gstAmount: {
+    type: Number,
+    required: true
+  },
+  total: {
+    type: Number,
+    required: true
+  }
 });
 
 const quotationSchema = new mongoose.Schema({
@@ -78,9 +99,13 @@ const quotationSchema = new mongoose.Schema({
   },
   validUntil: {
     type: Date,
-    required: true
+    required: true,
+    default: () => new Date(+new Date() + 30*24*60*60*1000) // 30 days from now
   },
-  terms: String,
+  terms: {
+    type: String,
+    default: '1. All prices are subject to GST\n2. Delivery charges extra\n3. Payment terms: 50% advance, 50% before delivery'
+  },
   notes: String,
   pdfUrl: String,
   version: {
@@ -91,7 +116,7 @@ const quotationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate quotation number
+// Generate quotation number before saving
 quotationSchema.pre('save', async function(next) {
   if (!this.quotationNumber) {
     const date = new Date();

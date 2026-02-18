@@ -1,6 +1,13 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+
+// IMPORTANT: Load models first
+require('./models/User');
+require('./models/Project');
+require('./models/Material');
+require('./models/Quotation');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -8,6 +15,7 @@ const projectRoutes = require('./routes/projectRoutes');
 const quotationRoutes = require('./routes/quotationRoutes');
 const materialRoutes = require('./routes/materialRoutes');
 const gstRoutes = require('./routes/gstRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 // Debug route imports
 console.log('authRoutes type:', typeof authRoutes);
@@ -51,6 +59,8 @@ app.use('/api/materials', materialRoutes);
 
 console.log('Mounting gstRoutes...');
 app.use('/api/gst', gstRoutes);
+
+app.use('/api/dashboard', dashboardRoutes);
 
 // Base route
 app.get('/', (req, res) => {

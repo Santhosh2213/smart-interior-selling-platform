@@ -1,30 +1,34 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/authMiddleware');
-
-// Import controllers (you'll need to create these)
 const {
-  getQuotations,
-  getQuotationById,
   createQuotation,
+  getSellerQuotations,
+  getCustomerQuotations,
+  getQuotationById,
   updateQuotation,
-  deleteQuotation,
-  generateQuotationPDF
+  sendQuotation,
+  acceptQuotation,
+  rejectQuotation,
+  deleteQuotation
 } = require('../controllers/quotationController');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 // All routes require authentication
 router.use(protect);
 
-// Routes
-router.route('/')
-  .get(getQuotations)
-  .post(authorize('admin', 'customer'), createQuotation);
+// Seller routes
+router.post('/', authorize('seller'), createQuotation);
+router.get('/seller', authorize('seller'), getSellerQuotations);
+router.put('/:id', authorize('seller'), updateQuotation);
+router.put('/:id/send', authorize('seller'), sendQuotation);
+router.delete('/:id', authorize('seller'), deleteQuotation);
 
-router.route('/:id')
-  .get(getQuotationById)
-  .put(authorize('admin'), updateQuotation)
-  .delete(authorize('admin'), deleteQuotation);
+// Customer routes
+router.get('/customer', authorize('customer'), getCustomerQuotations);
+router.put('/:id/accept', authorize('customer'), acceptQuotation);
+router.put('/:id/reject', authorize('customer'), rejectQuotation);
 
-router.get('/:id/pdf', generateQuotationPDF);
+// Shared routes
+router.get('/:id', getQuotationById);
 
 module.exports = router;
