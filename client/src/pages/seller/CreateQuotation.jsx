@@ -72,14 +72,36 @@ const CreateQuotation = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      console.log('Fetching project data for ID:', projectId);
+      
       const [projectRes, materialsRes] = await Promise.all([
         projectService.getProjectById(projectId),
         materialService.getAllMaterials()
       ]);
       
+      console.log('Project response:', projectRes);
+      console.log('Materials response:', materialsRes);
+      
+      // Check the structure of materials response
+      // The API returns { success: true, message: "...", data: [...] }
+      let materialsData = [];
+      if (materialsRes && materialsRes.data) {
+        materialsData = materialsRes.data;
+        console.log('Materials array:', materialsData);
+        console.log('Number of materials:', materialsData.length);
+      } else if (Array.isArray(materialsRes)) {
+        materialsData = materialsRes;
+      }
+      
       setProject(projectRes.data || null);
-      setMaterials(materialsRes.data || []);
-      setFilteredMaterials(materialsRes.data || []);
+      setMaterials(materialsData);
+      setFilteredMaterials(materialsData);
+      
+      if (materialsData.length === 0) {
+        console.warn('No materials found in response');
+      } else {
+        console.log('First material:', materialsData[0]);
+      }
     } catch (error) {
       console.error('Fetch error:', error);
       toast.error(error.response?.data?.error || 'Failed to load data');

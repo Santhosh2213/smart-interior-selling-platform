@@ -19,14 +19,22 @@ const notificationSchema = new mongoose.Schema({
     enum: ['info', 'success', 'warning', 'error'],
     default: 'info'
   },
-  link: String,
+  link: {
+    type: String
+  },
   read: {
     type: Boolean,
     default: false
   },
-  readAt: Date
+  readAt: Date,
+  metadata: {
+    type: mongoose.Schema.Types.Mixed
+  }
 }, {
   timestamps: true
 });
+
+// Index for faster queries
+notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

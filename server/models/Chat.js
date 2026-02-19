@@ -1,11 +1,6 @@
 const mongoose = require('mongoose');
 
-const chatSchema = new mongoose.Schema({
-  projectId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
-    required: true
-  },
+const messageSchema = new mongoose.Schema({
   senderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -22,7 +17,8 @@ const chatSchema = new mongoose.Schema({
   },
   attachment: {
     url: String,
-    type: String
+    type: String,
+    filename: String
   },
   read: {
     type: Boolean,
@@ -32,5 +28,28 @@ const chatSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+const chatSchema = new mongoose.Schema({
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    required: true
+  },
+  participants: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  messages: [messageSchema],
+  lastMessage: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Index for faster queries
+chatSchema.index({ projectId: 1 });
+chatSchema.index({ participants: 1 });
 
 module.exports = mongoose.model('Chat', chatSchema);

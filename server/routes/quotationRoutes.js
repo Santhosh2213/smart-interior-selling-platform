@@ -28,7 +28,7 @@ router.get('/customer', authorize('customer'), getCustomerQuotations);
 router.put('/:id/accept', authorize('customer'), acceptQuotation);
 router.put('/:id/reject', authorize('customer'), rejectQuotation);
 
-// Shared routes
-router.get('/:id', getQuotationById);
+// Shared routes - accessible by both seller and customer
+router.get('/:id', getQuotationById); // Remove authorize here - let the controller handle authorization
 
 module.exports = router;

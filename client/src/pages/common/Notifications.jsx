@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, read
 
@@ -22,10 +23,38 @@ const Notifications = () => {
 
   const fetchNotifications = async () => {
     try {
+      setLoading(true);
       const response = await notificationService.getNotifications();
-      setNotifications(response.data || []);
+      console.log('Notifications response:', response); // Debug log
+      
+      // Handle different response structures
+      if (response && response.success) {
+        // Check if data is an object with notifications array or direct array
+        if (response.data && Array.isArray(response.data.notifications)) {
+          setNotifications(response.data.notifications);
+          setUnreadCount(response.data.unreadCount || 0);
+        } else if (Array.isArray(response.data)) {
+          setNotifications(response.data);
+          // Calculate unread count from array
+          const unread = response.data.filter(n => !n.read).length;
+          setUnreadCount(unread);
+        } else if (Array.isArray(response)) {
+          setNotifications(response);
+          const unread = response.filter(n => !n.read).length;
+          setUnreadCount(unread);
+        } else {
+          setNotifications([]);
+          setUnreadCount(0);
+        }
+      } else {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
     } catch (error) {
+      console.error('Failed to load notifications:', error);
       toast.error('Failed to load notifications');
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
@@ -34,10 +63,14 @@ const Notifications = () => {
   const handleMarkAsRead = async (id) => {
     try {
       await notificationService.markAsRead(id);
-      setNotifications(notifications.map(n => 
-        n._id === id ? { ...n, read: true } : n
-      ));
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => n._id === id ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      toast.success('Notification marked as read');
     } catch (error) {
+      console.error('Failed to mark as read:', error);
       toast.error('Failed to mark as read');
     }
   };
@@ -45,9 +78,12 @@ const Notifications = () => {
   const handleMarkAllAsRead = async () => {
     try {
       await notificationService.markAllAsRead();
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
       toast.success('All notifications marked as read');
     } catch (error) {
+      console.error('Failed to mark all as read:', error);
       toast.error('Failed to mark all as read');
     }
   };
@@ -55,9 +91,17 @@ const Notifications = () => {
   const handleDelete = async (id) => {
     try {
       await notificationService.deleteNotification(id);
-      setNotifications(notifications.filter(n => n._id !== id));
+      // Update local state
+      setNotifications(prev => {
+        const deleted = prev.find(n => n._id === id);
+        if (deleted && !deleted.read) {
+          setUnreadCount(count => Math.max(0, count - 1));
+        }
+        return prev.filter(n => n._id !== id);
+      });
       toast.success('Notification deleted');
     } catch (error) {
+      console.error('Failed to delete notification:', error);
       toast.error('Failed to delete notification');
     }
   };
@@ -75,13 +119,14 @@ const Notifications = () => {
     }
   };
 
-  const filteredNotifications = notifications.filter(n => {
+  // Ensure notifications is an array before filtering
+  const notificationsArray = Array.isArray(notifications) ? notifications : [];
+  
+  const filteredNotifications = notificationsArray.filter(n => {
     if (filter === 'unread') return !n.read;
     if (filter === 'read') return n.read;
     return true;
   });
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   if (loading) {
     return (
@@ -115,7 +160,7 @@ const Notifications = () => {
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          All
+          All ({notificationsArray.length})
         </button>
         <button
           onClick={() => setFilter('unread')}
@@ -135,7 +180,7 @@ const Notifications = () => {
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          Read
+          Read ({notificationsArray.length - unreadCount})
         </button>
       </div>
 
@@ -158,7 +203,7 @@ const Notifications = () => {
                         <h3 className="font-medium text-gray-900">{notification.title}</h3>
                         <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
                         <p className="text-xs text-gray-400 mt-2">
-                          {new Date(notification.createdAt).toLocaleString()}
+                          {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : 'Recently'}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">

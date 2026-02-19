@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 
-// Import controllers (create these later)
+// Import controllers with correct function names
 const {
-  getMaterials,
+  getAllMaterials,  // Changed from getMaterials
   getMaterialById,
   createMaterial,
   updateMaterial,
@@ -16,12 +16,12 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(getMaterials)
-  .post(authorize('admin'), createMaterial);
+  .get(getAllMaterials)  // Changed from getMaterials
+  .post(authorize('seller'), createMaterial);  // Changed from 'admin' to 'seller'
 
 router.route('/:id')
   .get(getMaterialById)
-  .put(authorize('admin'), updateMaterial)
-  .delete(authorize('admin'), deleteMaterial);
+  .put(authorize('seller'), updateMaterial)  // Changed from 'admin' to 'seller'
+  .delete(authorize('seller'), deleteMaterial);  // Changed from 'admin' to 'seller'
 
-module.exports = router; // ← This must be the ONLY export!
+module.exports = router;

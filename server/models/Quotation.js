@@ -59,7 +59,6 @@ const quotationSchema = new mongoose.Schema({
   },
   quotationNumber: {
     type: String,
-    required: true,
     unique: true
   },
   items: [quotationItemSchema],
@@ -99,7 +98,6 @@ const quotationSchema = new mongoose.Schema({
   },
   validUntil: {
     type: Date,
-    required: true,
     default: () => new Date(+new Date() + 30*24*60*60*1000) // 30 days from now
   },
   terms: {
@@ -118,14 +116,33 @@ const quotationSchema = new mongoose.Schema({
 
 // Generate quotation number before saving
 quotationSchema.pre('save', async function(next) {
-  if (!this.quotationNumber) {
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const count = await this.constructor.countDocuments();
-    this.quotationNumber = `QT-${year}${month}-${(count + 1).toString().padStart(4, '0')}`;
+  try {
+    if (!this.quotationNumber) {
+      const date = new Date();
+      const year = date.getFullYear().toString().slice(-2);
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      
+      // Find the last quotation to get the next sequence number
+      const lastQuotation = await this.constructor.findOne({}, {}, { sort: { 'createdAt': -1 } });
+      
+      let sequence = 1;
+      if (lastQuotation && lastQuotation.quotationNumber) {
+        // Extract the sequence number from the last quotation number
+        const parts = lastQuotation.quotationNumber.split('-');
+        if (parts.length === 3) {
+          const lastSequence = parseInt(parts[2]);
+          if (!isNaN(lastSequence)) {
+            sequence = lastSequence + 1;
+          }
+        }
+      }
+      
+      this.quotationNumber = `QT-${year}${month}-${sequence.toString().padStart(4, '0')}`;
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 });
 
 module.exports = mongoose.model('Quotation', quotationSchema);

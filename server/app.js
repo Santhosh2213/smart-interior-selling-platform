@@ -16,6 +16,9 @@ const quotationRoutes = require('./routes/quotationRoutes');
 const materialRoutes = require('./routes/materialRoutes');
 const gstRoutes = require('./routes/gstRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const designerRoutes = require('./routes/designerRoutes');
 
 // Debug route imports
 console.log('authRoutes type:', typeof authRoutes);
@@ -61,6 +64,10 @@ console.log('Mounting gstRoutes...');
 app.use('/api/gst', gstRoutes);
 
 app.use('/api/dashboard', dashboardRoutes);
+
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/designer', designerRoutes);
 
 // Base route
 app.get('/', (req, res) => {
