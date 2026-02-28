@@ -59,7 +59,8 @@ const quotationSchema = new mongoose.Schema({
   },
   quotationNumber: {
     type: String,
-    unique: true
+    unique: true,
+    required: true
   },
   items: [quotationItemSchema],
   subtotal: {
@@ -93,12 +94,12 @@ const quotationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'revised'],
+    enum: ['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'revised', 'changes_requested'],
     default: 'draft'
   },
   validUntil: {
     type: Date,
-    default: () => new Date(+new Date() + 30*24*60*60*1000) // 30 days from now
+    default: () => new Date(+new Date() + 30*24*60*60*1000)
   },
   terms: {
     type: String,
@@ -114,35 +115,7 @@ const quotationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate quotation number before saving
-quotationSchema.pre('save', async function(next) {
-  try {
-    if (!this.quotationNumber) {
-      const date = new Date();
-      const year = date.getFullYear().toString().slice(-2);
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      
-      // Find the last quotation to get the next sequence number
-      const lastQuotation = await this.constructor.findOne({}, {}, { sort: { 'createdAt': -1 } });
-      
-      let sequence = 1;
-      if (lastQuotation && lastQuotation.quotationNumber) {
-        // Extract the sequence number from the last quotation number
-        const parts = lastQuotation.quotationNumber.split('-');
-        if (parts.length === 3) {
-          const lastSequence = parseInt(parts[2]);
-          if (!isNaN(lastSequence)) {
-            sequence = lastSequence + 1;
-          }
-        }
-      }
-      
-      this.quotationNumber = `QT-${year}${month}-${sequence.toString().padStart(4, '0')}`;
-    }
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
+// NO pre-save hook - we'll generate in controller
+// NO explicit index definitions - let MongoDB handle it
 
 module.exports = mongoose.model('Quotation', quotationSchema);

@@ -7,9 +7,11 @@ const Material = require('../models/Material');
 // @desc    Create new quotation
 // @route   POST /api/quotations
 // @access  Private (Seller only)
-exports.createQuotation = async (req, res) => {
+const createQuotation = async (req, res) => {
   try {
     const { projectId, items, laborCost, transportCost, discount, discountType, terms, notes } = req.body;
+
+    console.log('Creating quotation for project:', projectId);
 
     // Get seller profile
     const seller = await Seller.findOne({ userId: req.user.id });
@@ -75,11 +77,19 @@ exports.createQuotation = async (req, res) => {
 
     const total = subtotal + gstTotal + (laborCost || 0) + (transportCost || 0) - discountAmount;
 
+    // Generate simple unique number
+    const timestamp = Date.now();
+    const random = Math.floor(1000 + Math.random() * 9000);
+    const quotationNumber = `QT-${timestamp}-${random}`;
+
+    console.log('Generated quotation number:', quotationNumber);
+
     // Create quotation
     const quotation = await Quotation.create({
       projectId: project._id,
       customerId: project.customerId._id,
       sellerId: seller._id,
+      quotationNumber,
       items: quotationItems,
       subtotal,
       gstTotal,
@@ -90,23 +100,66 @@ exports.createQuotation = async (req, res) => {
       total,
       status: 'draft',
       terms: terms || '1. All prices are subject to GST\n2. Delivery charges extra\n3. Payment terms: 50% advance, 50% before delivery',
-      notes
+      notes,
+      version: 1
     });
 
-    // Update project status
+    console.log('Quotation created successfully:', quotation._id, 'Number:', quotation.quotationNumber);
+
+    // Update project
     project.status = 'quoted';
     project.quotations.push(quotation._id);
     await project.save();
 
     res.status(201).json({
       success: true,
-      data: quotation
+      data: quotation,
+      message: 'Quotation created successfully'
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Create quotation error:', error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Duplicate quotation number. Please try again.'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
+    });
+  }
+};
+
+// Helper function for retry
+const createQuotationWithNumber = async (req, res, quotationNumber) => {
+  try {
+    const { projectId, items, laborCost, transportCost, discount, discountType, terms, notes } = req.body;
+
+    const seller = await Seller.findOne({ userId: req.user.id });
+    const project = await Project.findById(projectId).populate('customerId');
+    
+    // ... (same calculation logic as above) ...
+    
+    const quotation = await Quotation.create({
+      projectId: project._id,
+      customerId: project.customerId._id,
+      sellerId: seller._id,
+      quotationNumber,
+      // ... rest of the fields
+    });
+    
+    return res.status(201).json({
+      success: true,
+      data: quotation,
+      message: 'Quotation created successfully'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create quotation after retry'
     });
   }
 };
@@ -114,7 +167,7 @@ exports.createQuotation = async (req, res) => {
 // @desc    Get all quotations for seller
 // @route   GET /api/quotations/seller
 // @access  Private (Seller)
-exports.getSellerQuotations = async (req, res) => {
+const getSellerQuotations = async (req, res) => {
   try {
     const seller = await Seller.findOne({ userId: req.user.id });
     if (!seller) {
@@ -144,10 +197,10 @@ exports.getSellerQuotations = async (req, res) => {
       data: quotations
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Get seller quotations error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -155,7 +208,7 @@ exports.getSellerQuotations = async (req, res) => {
 // @desc    Get quotations for customer
 // @route   GET /api/quotations/customer
 // @access  Private (Customer)
-exports.getCustomerQuotations = async (req, res) => {
+const getCustomerQuotations = async (req, res) => {
   try {
     const customer = await Customer.findOne({ userId: req.user.id });
     if (!customer) {
@@ -185,10 +238,10 @@ exports.getCustomerQuotations = async (req, res) => {
       data: quotations
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Get customer quotations error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -196,7 +249,7 @@ exports.getCustomerQuotations = async (req, res) => {
 // @desc    Get single quotation
 // @route   GET /api/quotations/:id
 // @access  Private
-exports.getQuotationById = async (req, res) => {
+const getQuotationById = async (req, res) => {
   try {
     const quotation = await Quotation.findById(req.params.id)
       .populate({
@@ -251,10 +304,10 @@ exports.getQuotationById = async (req, res) => {
       data: quotation
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Get quotation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -262,7 +315,7 @@ exports.getQuotationById = async (req, res) => {
 // @desc    Update quotation
 // @route   PUT /api/quotations/:id
 // @access  Private (Seller)
-exports.updateQuotation = async (req, res) => {
+const updateQuotation = async (req, res) => {
   try {
     let quotation = await Quotation.findById(req.params.id);
 
@@ -283,7 +336,7 @@ exports.updateQuotation = async (req, res) => {
     }
 
     // Only allow updates if quotation is in draft
-    if (quotation.status !== 'draft') {
+    if (quotation.status !== 'draft' && quotation.status !== 'changes_requested') {
       return res.status(400).json({
         success: false,
         error: 'Cannot update quotation after it has been sent'
@@ -301,10 +354,10 @@ exports.updateQuotation = async (req, res) => {
       data: quotation
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Update quotation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -312,7 +365,7 @@ exports.updateQuotation = async (req, res) => {
 // @desc    Send quotation to customer
 // @route   PUT /api/quotations/:id/send
 // @access  Private (Seller)
-exports.sendQuotation = async (req, res) => {
+const sendQuotation = async (req, res) => {
   try {
     const quotation = await Quotation.findById(req.params.id);
 
@@ -333,6 +386,7 @@ exports.sendQuotation = async (req, res) => {
     }
 
     quotation.status = 'sent';
+    quotation.sentAt = Date.now();
     await quotation.save();
 
     // Update project status
@@ -346,10 +400,10 @@ exports.sendQuotation = async (req, res) => {
       message: 'Quotation sent to customer'
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Send quotation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -357,7 +411,7 @@ exports.sendQuotation = async (req, res) => {
 // @desc    Accept quotation (customer)
 // @route   PUT /api/quotations/:id/accept
 // @access  Private (Customer)
-exports.acceptQuotation = async (req, res) => {
+const acceptQuotation = async (req, res) => {
   try {
     const quotation = await Quotation.findById(req.params.id);
 
@@ -377,7 +431,15 @@ exports.acceptQuotation = async (req, res) => {
       });
     }
 
+    if (!['sent', 'viewed'].includes(quotation.status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot accept quotation with status: ${quotation.status}`
+      });
+    }
+
     quotation.status = 'accepted';
+    quotation.acceptedAt = Date.now();
     await quotation.save();
 
     // Update project status
@@ -391,10 +453,10 @@ exports.acceptQuotation = async (req, res) => {
       message: 'Quotation accepted successfully'
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Accept quotation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -402,8 +464,9 @@ exports.acceptQuotation = async (req, res) => {
 // @desc    Reject quotation (customer)
 // @route   PUT /api/quotations/:id/reject
 // @access  Private (Customer)
-exports.rejectQuotation = async (req, res) => {
+const rejectQuotation = async (req, res) => {
   try {
+    const { reason } = req.body;
     const quotation = await Quotation.findById(req.params.id);
 
     if (!quotation) {
@@ -423,6 +486,8 @@ exports.rejectQuotation = async (req, res) => {
     }
 
     quotation.status = 'rejected';
+    quotation.rejectedAt = Date.now();
+    quotation.rejectionReason = reason || 'No reason provided';
     await quotation.save();
 
     // Update project status back to pending
@@ -436,10 +501,60 @@ exports.rejectQuotation = async (req, res) => {
       message: 'Quotation rejected'
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Reject quotation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
+    });
+  }
+};
+
+// @desc    Request changes to quotation (customer)
+// @route   PUT /api/quotations/:id/request-changes
+// @access  Private (Customer)
+const requestQuotationChanges = async (req, res) => {
+  try {
+    const { changeRequests } = req.body;
+    const quotation = await Quotation.findById(req.params.id);
+
+    if (!quotation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Quotation not found'
+      });
+    }
+
+    // Check if customer owns this quotation
+    const customer = await Customer.findOne({ userId: req.user.id });
+    if (!customer || quotation.customerId.toString() !== customer._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to request changes'
+      });
+    }
+
+    if (!['sent', 'viewed'].includes(quotation.status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot request changes with status: ${quotation.status}`
+      });
+    }
+
+    quotation.status = 'changes_requested';
+    quotation.changeRequests = changeRequests || [];
+    quotation.changeRequestedAt = Date.now();
+    await quotation.save();
+
+    res.status(200).json({
+      success: true,
+      data: quotation,
+      message: 'Change requests sent to seller'
+    });
+  } catch (error) {
+    console.error('❌ Request changes error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -447,7 +562,7 @@ exports.rejectQuotation = async (req, res) => {
 // @desc    Delete quotation
 // @route   DELETE /api/quotations/:id
 // @access  Private (Seller)
-exports.deleteQuotation = async (req, res) => {
+const deleteQuotation = async (req, res) => {
   try {
     const quotation = await Quotation.findById(req.params.id);
 
@@ -479,10 +594,24 @@ exports.deleteQuotation = async (req, res) => {
       data: {}
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Delete quotation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
+};
+
+// EXPORT ALL FUNCTIONS - USING OBJECT EXPORT (NOT exports.functionName)
+module.exports = {
+  createQuotation,
+  getSellerQuotations,
+  getCustomerQuotations,
+  getQuotationById,
+  updateQuotation,
+  sendQuotation,
+  acceptQuotation,
+  rejectQuotation,
+  requestQuotationChanges,
+  deleteQuotation
 };

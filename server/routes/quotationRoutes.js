@@ -9,6 +9,7 @@ const {
   sendQuotation,
   acceptQuotation,
   rejectQuotation,
+  requestQuotationChanges,
   deleteQuotation
 } = require('../controllers/quotationController');
 const { protect, authorize } = require('../middleware/authMiddleware');
@@ -27,8 +28,9 @@ router.delete('/:id', authorize('seller'), deleteQuotation);
 router.get('/customer', authorize('customer'), getCustomerQuotations);
 router.put('/:id/accept', authorize('customer'), acceptQuotation);
 router.put('/:id/reject', authorize('customer'), rejectQuotation);
+router.put('/:id/request-changes', authorize('customer'), requestQuotationChanges);
 
-// Shared routes - accessible by both seller and customer
-router.get('/:id', getQuotationById); // Remove authorize here - let the controller handle authorization
+// Shared routes (accessible by both seller and customer)
+router.get('/:id', getQuotationById);
 
 module.exports = router;
