@@ -1,272 +1,340 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { designerService } from '../../services/designerService';
+import { useNavigate } from 'react-router-dom';
+import { 
+  getSuggestionHistory,
+  getProjectForDesign 
+} from '../../services/designerService';
+import Loader from '../../components/common/Loader';
 import { 
   ArrowLeftIcon,
-  LightBulbIcon,
-  PencilIcon,
-  TrashIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  ClockIcon,
+  EyeIcon 
 } from '@heroicons/react/24/outline';
-import Loader from '../../components/common/Loader';
-import toast from 'react-hot-toast';
 
 const DesignSuggestions = () => {
-  const { projectId } = useParams();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [project, setProject] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
-  const [editingSuggestion, setEditingSuggestion] = useState(null);
-  const [editForm, setEditForm] = useState({
-    title: '',
-    description: '',
-    materials: [],
-    estimatedCost: ''
-  });
+  const [loading, setLoading] = useState(true);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [filter, setFilter] = useState('all'); // all, submitted, approved, rejected
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchData();
-  }, [projectId]);
+    loadSuggestions();
+  }, []);
 
-  const fetchData = async () => {
+  const loadSuggestions = async () => {
     try {
-      const [projectRes, suggestionsRes] = await Promise.all([
-        designerService.getProjectById(projectId),
-        designerService.getSuggestions(projectId)
-      ]);
-      
-      setProject(projectRes.data);
-      setSuggestions(suggestionsRes.data);
+      const data = await getSuggestionHistory();
+      setSuggestions(data);
     } catch (error) {
-      toast.error('Failed to load data');
+      console.error('Error loading suggestions:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (suggestion) => {
-    setEditingSuggestion(suggestion._id);
-    setEditForm({
-      title: suggestion.title,
-      description: suggestion.description,
-      materials: suggestion.materials || [],
-      estimatedCost: suggestion.estimatedCost || ''
-    });
-  };
-
-  const handleCancel = () => {
-    setEditingSuggestion(null);
-    setEditForm({
-      title: '',
-      description: '',
-      materials: [],
-      estimatedCost: ''
-    });
-  };
-
-  const handleSave = async (id) => {
+  const handleViewDetails = async (suggestion) => {
     try {
-      await designerService.updateSuggestion(id, editForm);
-      toast.success('Suggestion updated');
-      setEditingSuggestion(null);
-      fetchData();
+      const projectData = await getProjectForDesign(suggestion.projectId._id);
+      setSelectedSuggestion({
+        ...suggestion,
+        projectDetails: projectData.project
+      });
+      setShowDetails(true);
     } catch (error) {
-      toast.error('Failed to update suggestion');
+      console.error('Error loading suggestion details:', error);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this suggestion?')) {
-      return;
-    }
-
-    try {
-      await designerService.deleteSuggestion(id);
-      toast.success('Suggestion deleted');
-      fetchData();
-    } catch (error) {
-      toast.error('Failed to delete suggestion');
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'APPROVED':
+        return <CheckCircleIcon className="h-5 w-5 text-green-500" />;
+      case 'REJECTED':
+        return <XCircleIcon className="h-5 w-5 text-red-500" />;
+      default:
+        return <ClockIcon className="h-5 w-5 text-yellow-500" />;
     }
   };
 
-  const handleStatusChange = async (id, status) => {
-    try {
-      await designerService.updateSuggestionStatus(id, status);
-      toast.success(`Suggestion ${status}`);
-      fetchData();
-    } catch (error) {
-      toast.error('Failed to update status');
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'APPROVED':
+        return 'bg-green-100 text-green-800';
+      case 'REJECTED':
+        return 'bg-red-100 text-red-800';
+      case 'SUBMITTED':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader size="lg" />
-      </div>
-    );
-  }
+  const filteredSuggestions = suggestions.filter(s => {
+    if (filter === 'all') return true;
+    return s.status.toLowerCase() === filter.toLowerCase();
+  });
+
+  if (loading) return <Loader />;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="flex items-center mb-6">
-        <button
-          onClick={() => navigate('/designer/dashboard')}
-          className="mr-4 text-gray-600 hover:text-primary-600"
-        >
-          <ArrowLeftIcon className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Design Suggestions</h1>
-          <p className="text-gray-600">Project: {project?.title}</p>
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <button
+            onClick={() => navigate('/designer/dashboard')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-2"
+          >
+            <ArrowLeftIcon className="h-4 w-4 mr-1" />
+            Back to Dashboard
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Design Suggestions History</h1>
+          <p className="text-gray-600">View all your past design recommendations</p>
         </div>
       </div>
 
-      {/* Suggestions List */}
-      <div className="space-y-6">
-        {suggestions.map((suggestion) => (
-          <div key={suggestion._id} className="bg-white rounded-lg shadow p-6">
-            {editingSuggestion === suggestion._id ? (
-              // Edit Mode
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm({...editForm, title: e.target.value})}
-                  className="input-field"
-                  placeholder="Suggestion Title"
-                />
-                
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                  rows="4"
-                  className="input-field"
-                  placeholder="Description"
-                />
-                
-                <input
-                  type="text"
-                  value={editForm.materials.join(', ')}
-                  onChange={(e) => setEditForm({
-                    ...editForm, 
-                    materials: e.target.value.split(',').map(m => m.trim()).filter(m => m)
-                  })}
-                  className="input-field"
-                  placeholder="Materials (comma separated)"
-                />
-                
-                <input
-                  type="number"
-                  value={editForm.estimatedCost}
-                  onChange={(e) => setEditForm({...editForm, estimatedCost: e.target.value})}
-                  className="input-field"
-                  placeholder="Estimated Cost"
-                />
-                
-                <div className="flex justify-end space-x-2">
-                  <button
-                    onClick={handleCancel}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleSave(suggestion._id)}
-                    className="btn-primary"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // View Mode
-              <>
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center">
-                    <LightBulbIcon className="h-5 w-5 text-primary-600 mr-2" />
-                    <h3 className="text-lg font-semibold">{suggestion.title}</h3>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      suggestion.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      suggestion.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {suggestion.status || 'pending'}
-                    </span>
-                    
-                    <button
-                      onClick={() => handleEdit(suggestion)}
-                      className="text-gray-400 hover:text-primary-600"
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
-                    
-                    <button
-                      onClick={() => handleDelete(suggestion._id)}
-                      className="text-gray-400 hover:text-red-600"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <p className="text-gray-600 mb-4">{suggestion.description}</p>
-
-                {suggestion.materials?.length > 0 && (
-                  <div className="mb-3">
-                    <span className="text-sm text-gray-500">Materials: </span>
-                    <span className="text-sm">{suggestion.materials.join(', ')}</span>
-                  </div>
-                )}
-
-                {suggestion.estimatedCost && (
-                  <div className="mb-4">
-                    <span className="text-sm text-gray-500">Estimated Cost: </span>
-                    <span className="text-sm font-medium">₹{suggestion.estimatedCost}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-end space-x-2 pt-4 border-t">
-                  <button
-                    onClick={() => handleStatusChange(suggestion._id, 'approved')}
-                    className="text-green-600 hover:text-green-700 flex items-center text-sm"
-                  >
-                    <CheckCircleIcon className="h-4 w-4 mr-1" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(suggestion._id, 'rejected')}
-                    className="text-red-600 hover:text-red-700 flex items-center text-sm"
-                  >
-                    <XCircleIcon className="h-4 w-4 mr-1" />
-                    Reject
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-
-        {suggestions.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <LightBulbIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No suggestions yet</h3>
-            <p className="text-gray-600 mb-6">Add your first design suggestion for this project.</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Filters */}
+        <div className="mb-6 flex space-x-2">
+          {['all', 'submitted', 'approved', 'rejected'].map((f) => (
             <button
-              onClick={() => navigate(`/designer/project/${projectId}`)}
-              className="btn-primary"
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium capitalize ${
+                filter === f
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
             >
-              Add Suggestion
+              {f}
             </button>
-          </div>
-        )}
+          ))}
+        </div>
+
+        {/* Suggestions List */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {filteredSuggestions.length > 0 ? (
+            <div className="divide-y divide-gray-200">
+              {filteredSuggestions.map((suggestion) => (
+                <div key={suggestion._id} className="p-6 hover:bg-gray-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
+                        {getStatusIcon(suggestion.status)}
+                        <h3 className="text-lg font-medium text-gray-900 ml-2">
+                          {suggestion.projectId?.title || 'Project'}
+                        </h3>
+                        <span className={`ml-3 px-2 py-1 text-xs rounded-full ${getStatusColor(suggestion.status)}`}>
+                          {suggestion.status}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-gray-600 mb-2">
+                        Submitted: {new Date(suggestion.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+
+                      {suggestion.designNotes && (
+                        <p className="text-sm text-gray-700 mb-3 line-clamp-2">
+                          {suggestion.designNotes}
+                        </p>
+                      )}
+
+                      <div className="flex items-center space-x-4 text-sm">
+                        <span className="text-gray-500">
+                          Materials: {suggestion.recommendations?.length || 0}
+                        </span>
+                        {suggestion.suggestedTheme && (
+                          <span className="text-gray-500">
+                            Theme: {suggestion.suggestedTheme}
+                          </span>
+                        )}
+                        <span className="text-gray-500">
+                          Version: {suggestion.version || 1}
+                        </span>
+                      </div>
+
+                      {suggestion.recommendations && suggestion.recommendations.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Materials:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {suggestion.recommendations.slice(0, 3).map((rec, idx) => (
+                              <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                {rec.materialId?.name || 'Material'} ({rec.quantity} {rec.unit})
+                              </span>
+                            ))}
+                            {suggestion.recommendations.length > 3 && (
+                              <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                +{suggestion.recommendations.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleViewDetails(suggestion)}
+                      className="ml-4 p-2 text-gray-400 hover:text-gray-600"
+                      title="View Details"
+                    >
+                      <EyeIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-12 text-center">
+              <p className="text-gray-500">No suggestions found</p>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Details Modal */}
+      {showDetails && selectedSuggestion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-bold">Design Suggestion Details</h2>
+                <button
+                  onClick={() => setShowDetails(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Project Info */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-semibold mb-2">Project Information</h3>
+                <p><span className="text-gray-600">Title:</span> {selectedSuggestion.projectDetails?.title}</p>
+                <p><span className="text-gray-600">Customer:</span> {selectedSuggestion.projectDetails?.customerId?.name}</p>
+                <p><span className="text-gray-600">Submitted:</span> {new Date(selectedSuggestion.createdAt).toLocaleString()}</p>
+                <p><span className="text-gray-600">Status:</span> 
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${getStatusColor(selectedSuggestion.status)}`}>
+                    {selectedSuggestion.status}
+                  </span>
+                </p>
+              </div>
+
+              {/* Theme & Colors */}
+              {(selectedSuggestion.suggestedTheme || selectedSuggestion.colorScheme?.primary) && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Theme & Color Scheme</h3>
+                  {selectedSuggestion.suggestedTheme && (
+                    <p><span className="text-gray-600">Theme:</span> {selectedSuggestion.suggestedTheme}</p>
+                  )}
+                  {selectedSuggestion.colorScheme?.primary && (
+                    <div className="flex items-center space-x-4 mt-2">
+                      <div className="flex items-center">
+                        <div 
+                          className="w-6 h-6 rounded-full mr-2" 
+                          style={{ backgroundColor: selectedSuggestion.colorScheme.primary }}
+                        />
+                        <span className="text-sm">Primary</span>
+                      </div>
+                      {selectedSuggestion.colorScheme.secondary && (
+                        <div className="flex items-center">
+                          <div 
+                            className="w-6 h-6 rounded-full mr-2" 
+                            style={{ backgroundColor: selectedSuggestion.colorScheme.secondary }}
+                          />
+                          <span className="text-sm">Secondary</span>
+                        </div>
+                      )}
+                      {selectedSuggestion.colorScheme.accent && (
+                        <div className="flex items-center">
+                          <div 
+                            className="w-6 h-6 rounded-full mr-2" 
+                            style={{ backgroundColor: selectedSuggestion.colorScheme.accent }}
+                          />
+                          <span className="text-sm">Accent</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Design Notes */}
+              {selectedSuggestion.designNotes && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Design Notes</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{selectedSuggestion.designNotes}</p>
+                </div>
+              )}
+
+              {/* Material Recommendations */}
+              {selectedSuggestion.recommendations && selectedSuggestion.recommendations.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Material Recommendations</h3>
+                  <div className="space-y-3">
+                    {selectedSuggestion.recommendations.map((rec, idx) => (
+                      <div key={idx} className="border rounded p-3">
+                        <p className="font-medium">{rec.materialId?.name || 'Material'}</p>
+                        <p className="text-sm text-gray-600">
+                          Quantity: {rec.quantity} {rec.unit}
+                        </p>
+                        {rec.notes && (
+                          <p className="text-sm text-gray-500 mt-1">{rec.notes}</p>
+                        )}
+                        {rec.estimatedCost > 0 && (
+                          <p className="text-sm font-medium text-blue-600 mt-1">
+                            Estimated: ₹{rec.estimatedCost.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline */}
+              {selectedSuggestion.estimatedTimeline && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Estimated Timeline</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center p-3 bg-gray-50 rounded">
+                      <p className="text-sm text-gray-600">Design</p>
+                      <p className="text-lg font-semibold">{selectedSuggestion.estimatedTimeline.designDays} days</p>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded">
+                      <p className="text-sm text-gray-600">Procurement</p>
+                      <p className="text-lg font-semibold">{selectedSuggestion.estimatedTimeline.materialProcurementDays} days</p>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded">
+                      <p className="text-sm text-gray-600">Installation</p>
+                      <p className="text-lg font-semibold">{selectedSuggestion.estimatedTimeline.installationDays} days</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowDetails(false)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

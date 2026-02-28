@@ -1,34 +1,6 @@
 const mongoose = require('mongoose');
 
-const materialRecommendationSchema = new mongoose.Schema({
-  materialId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Material'
-  },
-  materialName: {
-    type: String,
-    required: true
-  },
-  category: String,
-  quantity: {
-    type: Number,
-    required: true,
-    min: 0.01
-  },
-  unit: String,
-  reason: {
-    type: String,
-    required: true
-  },
-  estimatedPrice: Number,
-  priority: {
-    type: String,
-    enum: ['low', 'medium', 'high'],
-    default: 'medium'
-  }
-});
-
-const designSuggestionSchema = new mongoose.Schema({
+const designerSuggestionSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project',
@@ -39,39 +11,29 @@ const designSuggestionSchema = new mongoose.Schema({
     ref: 'Designer',
     required: true
   },
-  title: {
+  suggestions: [{
     type: String,
-    required: true
-  },
-  description: {
-    type: String,
-    required: true
-  },
-  category: {
-    type: String,
-    enum: ['layout', 'color', 'material', 'furniture', 'lighting', 'other'],
-    default: 'other'
-  },
-  images: [{
-    url: String,
-    caption: String,
-    isBeforeAfter: Boolean
+    trim: true
   }],
-  materialRecommendations: [materialRecommendationSchema],
+  materialRecommendations: [{
+    materialId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Material'
+    },
+    materialName: String,
+    reason: String,
+    quantity: Number,
+    unit: String,
+    estimatedPrice: Number
+  }],
   notes: String,
   status: {
     type: String,
-    enum: ['draft', 'submitted', 'reviewed', 'approved', 'rejected'],
+    enum: ['draft', 'submitted', 'approved', 'rejected'],
     default: 'draft'
-  },
-  feedback: String,
-  reviewedAt: Date,
-  reviewedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
   }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('DesignerSuggestion', designSuggestionSchema);
+module.exports = mongoose.model('DesignerSuggestion', designerSuggestionSchema);

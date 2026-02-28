@@ -1,82 +1,67 @@
 import api from './api';
 
-export const designerService = {
-  // Get designer dashboard
-  getDashboard: async () => {
-    try {
-      const response = await api.get('/designer/dashboard');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching designer dashboard:', error);
-      throw error;
-    }
-  },
-
-  // Get assigned projects
-  getAssignedProjects: async () => {
-    try {
-      const response = await api.get('/designer/projects');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching assigned projects:', error);
-      throw error;
-    }
-  },
-
-  // Get project for review
-  getProjectForReview: async (id) => {
-    try {
-      const response = await api.get(`/designer/projects/${id}`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error fetching project ${id}:`, error);
-      throw error;
-    }
-  },
-
-  // Get material recommendations
-  getMaterialRecommendations: async (projectId) => {
-    try {
-      const response = await api.get(`/designer/projects/${projectId}/recommendations`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching material recommendations:', error);
-      throw error;
-    }
-  },
-
-  // Add design suggestions
-  addDesignSuggestions: async (projectId, suggestionsData) => {
-    try {
-      const response = await api.post(`/designer/projects/${projectId}/suggestions`, suggestionsData);
-      return response.data;
-    } catch (error) {
-      console.error('Error adding design suggestions:', error);
-      throw error;
-    }
-  },
-
-  // Update suggestion status
-  updateSuggestionStatus: async (suggestionId, status, feedback) => {
-    try {
-      const response = await api.put(`/designer/suggestions/${suggestionId}`, { status, feedback });
-      return response.data;
-    } catch (error) {
-      console.error('Error updating suggestion status:', error);
-      throw error;
-    }
-  },
-
-  // Send to seller
-  sendToSeller: async (projectId) => {
-    try {
-      const response = await api.post(`/designer/projects/${projectId}/send-to-seller`);
-      return response.data;
-    } catch (error) {
-      console.error('Error sending to seller:', error);
-      throw error;
-    }
+// Get all projects pending design review
+export const getDesignerQueue = async () => {
+  try {
+    const response = await api.get('/designer/queue');
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching designer queue:', error);
+    throw error;
   }
+};
+
+// Get single project for consultation
+export const getProjectForDesign = async (projectId) => {
+  try {
+    const response = await api.get(`/designer/project/${projectId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching project for design:', error);
+    throw error;
+  }
+};
+
+// Create or update design suggestion
+export const createDesignSuggestion = async (suggestionData) => {
+  try {
+    const response = await api.post('/designer/suggestions', suggestionData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating design suggestion:', error);
+    throw error;
+  }
+};
+
+// Get designer's suggestion history
+export const getSuggestionHistory = async () => {
+  try {
+    const response = await api.get('/designer/suggestions/history');
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching suggestion history:', error);
+    throw error;
+  }
+};
+
+// Get materials for recommendations
+export const getMaterials = async (category = '') => {
+  try {
+    const params = category ? { category } : {};
+    const response = await api.get('/designer/materials', { params });
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching materials:', error);
+    throw error;
+  }
+};
+
+const designerService = {
+  getDesignerQueue,
+  getProjectForDesign,
+  createDesignSuggestion,
+  getSuggestionHistory,
+  getMaterials
 };
 
 export default designerService;

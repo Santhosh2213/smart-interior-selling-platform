@@ -3,11 +3,21 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 
-// IMPORTANT: Load models first
+// IMPORTANT: Load all models first
 require('./models/User');
+require('./models/Customer');
+require('./models/Designer');
+require('./models/Seller');
 require('./models/Project');
+require('./models/Measurement');
+require('./models/ProjectImage');
 require('./models/Material');
+require('./models/GSTCategory');
 require('./models/Quotation');
+require('./models/DesignSuggestion');      // Add this
+require('./models/DesignerSuggestion');    // Add this for legacy
+require('./models/Notification');
+require('./models/Chat');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -20,17 +30,8 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const designerRoutes = require('./routes/designerRoutes');
 
-// Debug route imports
-console.log('authRoutes type:', typeof authRoutes);
-console.log('projectRoutes type:', typeof projectRoutes);
-console.log('quotationRoutes type:', typeof quotationRoutes);
-console.log('materialRoutes type:', typeof materialRoutes);
-console.log('gstRoutes type:', typeof gstRoutes);
-
 // Import middleware
 const errorHandler = require('./middleware/errorMiddleware');
-console.log('errorHandler type:', typeof errorHandler);
-console.log('errorHandler:', errorHandler);
 
 const app = express();
 
@@ -48,23 +49,12 @@ app.use(cors({
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Mount routes
-console.log('Mounting authRoutes...');
 app.use('/api/auth', authRoutes);
-
-console.log('Mounting projectRoutes...');
 app.use('/api/projects', projectRoutes);
-
-console.log('Mounting quotationRoutes...');
 app.use('/api/quotations', quotationRoutes);
-
-console.log('Mounting materialRoutes...');
 app.use('/api/materials', materialRoutes);
-
-console.log('Mounting gstRoutes...');
 app.use('/api/gst', gstRoutes);
-
 app.use('/api/dashboard', dashboardRoutes);
-
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/designer', designerRoutes);
@@ -75,10 +65,6 @@ app.get('/', (req, res) => {
 });
 
 // Error middleware
-console.log('About to mount errorHandler...');
-console.log('errorHandler at mount time:', typeof errorHandler, errorHandler.name);
 app.use(errorHandler);
-
-console.log('Error handler mounted successfully');
 
 module.exports = app;

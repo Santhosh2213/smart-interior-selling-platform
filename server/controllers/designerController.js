@@ -1,442 +1,465 @@
 const Project = require('../models/Project');
-const Designer = require('../models/Designer');
-const DesignerSuggestion = require('../models/DesignerSuggestion');
+const DesignSuggestion = require('../models/DesignSuggestion');
+const Measurement = require('../models/Measurement');
+const ProjectImage = require('../models/ProjectImage');
+const Material = require('../models/Material');
 const User = require('../models/User');
 const Customer = require('../models/Customer');
-const Material = require('../models/Material');
-const { createNotification } = require('./notificationController');
 
-// @desc    Get designer dashboard
-// @route   GET /api/designer/dashboard
-// @access  Private (Designer)
-// @desc    Get designer dashboard
-// @route   GET /api/designer/dashboard
-// @access  Private (Designer)
-exports.getDesignerDashboard = async (req, res) => {
+// @desc    Get all projects pending design review
+// @route   GET /api/designer/queue
+// @access  Private (Designer only)
+exports.getDesignerQueue = async (req, res) => {
   try {
-    console.log('Fetching designer dashboard for user:', req.user.id);
+    console.log('Fetching designer queue for user:', req.user.id);
     
-    // Get designer profile
+    // Find designer profile
+    const Designer = require('../models/Designer');
     const designer = await Designer.findOne({ userId: req.user.id });
     
     if (!designer) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Designer profile not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'Designer profile not found'
       });
     }
 
-    // Get ALL projects assigned to this designer - REAL DATA FROM DATABASE
-    const allProjects = await Project.find({ 
-      designerId: designer._id 
-    }).populate({
-      path: 'customerId',
-      populate: {
-        path: 'userId',
-        model: 'User',
-        select: 'name email phone'
-      }
-    });
-
-    console.log(`Found ${allProjects.length} real projects for designer`);
-
-    // Calculate stats from REAL data
-    const stats = {
-      totalConsultations: allProjects.length,
-      pending: allProjects.filter(p => p.status === 'pending').length,
-      inProgress: allProjects.filter(p => p.status === 'quoting').length,
-      completed: allProjects.filter(p => ['completed', 'approved'].includes(p.status)).length,
-      pendingReviews: allProjects.filter(p => !p.designerReviewed && p.images?.length > 0).length,
-      suggestionsMade: allProjects.filter(p => p.designerSuggestions?.length > 0).length,
-      approvedSuggestions: 0 // You can calculate this from suggestions
-    };
-
-    // Get recent projects - REAL DATA
-    const recentProjects = await Project.find({ 
-      designerId: designer._id 
+    // Get all projects that need design review
+    const projects = await Project.find({
+      status: { $in: ['PENDING_DESIGN', 'pending'] }
     })
-      .populate({
-        path: 'customerId',
-        populate: {
-          path: 'userId',
-          model: 'User',
-          select: 'name'
+    .lean()
+    .sort('-createdAt');
+    
+    console.log(`Found ${projects.length} projects for designer review`);
+    
+    // Manually populate data for each project
+    const formattedProjects = [];
+    
+    for (const project of projects) {
+      try {
+        // Get customer with populated user data
+        const customer = await Customer.findById(project.customerId)
+          .populate('userId')
+          .lean();
+        
+        // Get measurements
+        const measurements = await Measurement.find({ projectId: project._id }).lean();
+        
+        // Get images
+        const images = await ProjectImage.find({ projectId: project._id }).lean();
+        
+        // Extract customer information correctly
+        let customerName = 'Unknown';
+        let customerEmail = '';
+        let customerPhone = '';
+        
+        if (customer) {
+          // Customer document has userId which references User
+          if (customer.userId) {
+            customerName = customer.userId.name || customer.name || 'Unknown';
+            customerEmail = customer.userId.email || customer.email || '';
+            customerPhone = customer.userId.phone || customer.phone || '';
+          } else {
+            customerName = customer.name || 'Unknown';
+            customerEmail = customer.email || '';
+            customerPhone = customer.phone || '';
+          }
         }
-      })
-      .populate('images')
-      .sort('-createdAt')
-      .limit(5)
-      .lean();
-
-    // Format the REAL data for frontend
-    const formattedRecentProjects = recentProjects.map(p => ({
-      _id: p._id,
-      title: p.title || 'Untitled Project',
-      customerName: p.customerId?.userId?.name || 'Unknown',
-      status: p.status,
-      hasImages: p.images?.length > 0,
-      imageCount: p.images?.length || 0,
-      reviewed: p.designerReviewed || false,
-      createdAt: p.createdAt,
-      needsAttention: !p.designerReviewed && p.images?.length > 0
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        stats, // REAL stats from database
-        recentProjects: formattedRecentProjects, // REAL projects from database
-        designer: {
-          id: designer._id,
-          name: req.user.name,
-          specialization: designer.specialization || [],
-          experience: designer.experience || 0
-        }
+        
+        // Calculate total area
+        const totalArea = measurements.reduce((sum, m) => {
+          return sum + (m.areaSqFt || m.area || 0);
+        }, 0);
+        
+        // Create formatted project object with correct structure
+        formattedProjects.push({
+          _id: project._id.toString(),
+          title: project.title,
+          description: project.description,
+          status: project.status,
+          measurementUnit: project.measurementUnit || 'feet',
+          totalArea: totalArea,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          
+          // Customer info at top level for easy access
+          customerName: customerName,
+          customerEmail: customerEmail,
+          customerPhone: customerPhone,
+          
+          // Full customer object
+          customer: {
+            _id: customer?._id?.toString(),
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+            userId: customer?.userId
+          },
+          
+          // Arrays
+          measurements: measurements.map(m => ({
+            ...m,
+            _id: m._id.toString()
+          })),
+          images: images.map(img => ({
+            ...img,
+            _id: img._id.toString()
+          })),
+          
+          // Counts
+          roomCount: measurements.length,
+          photoCount: images.length
+        });
+        
+        console.log(`Formatted project ${project.title}:`, {
+          customerName,
+          roomCount: measurements.length,
+          photoCount: images.length
+        });
+        
+      } catch (err) {
+        console.error(`Error formatting project ${project._id}:`, err);
+        formattedProjects.push({
+          ...project,
+          _id: project._id.toString(),
+          customerName: 'Error loading customer',
+          customer: null,
+          measurements: [],
+          images: [],
+          roomCount: 0,
+          photoCount: 0,
+          totalArea: 0
+        });
       }
-    });
-  } catch (error) {
-    console.error('❌ Designer Dashboard Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Server Error: ' + error.message 
-    });
-  }
-};
-
-// @desc    Get assigned projects
-// @route   GET /api/designer/projects
-// @access  Private (Designer)
-exports.getAssignedProjects = async (req, res) => {
-  try {
-    const designer = await Designer.findOne({ userId: req.user.id });
-    
-    if (!designer) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Designer profile not found' 
-      });
     }
-
-    const projects = await Project.find({ designerId: designer._id })
-      .populate({
-        path: 'customerId',
-        populate: {
-          path: 'userId',
-          model: 'User',
-          select: 'name email phone'
-        }
-      })
-      .populate('images')
-      .populate('measurements')
-      .populate({
-        path: 'designerSuggestions',
-        options: { sort: { createdAt: -1 } }
-      })
-      .sort('-createdAt');
-
+    
     res.json({
       success: true,
-      count: projects.length,
-      data: projects
+      count: formattedProjects.length,
+      data: formattedProjects
     });
+    
   } catch (error) {
-    console.error('❌ Get Assigned Projects Error:', error);
+    console.error('Error in getDesignerQueue:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Server Error: ' + error.message 
+      error: error.message 
     });
   }
 };
 
-// @desc    Get single project for designer review
-// @route   GET /api/designer/projects/:id
-// @access  Private (Designer)
-exports.getProjectForReview = async (req, res) => {
+// @desc    Get single project for design consultation
+// @route   GET /api/designer/project/:id
+// @access  Private (Designer only)
+exports.getProjectForDesign = async (req, res) => {
   try {
-    const designer = await Designer.findOne({ userId: req.user.id });
+    console.log('Fetching project for design:', req.params.id);
     
-    if (!designer) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Designer profile not found' 
-      });
-    }
-
-    const project = await Project.findById(req.params.id)
-      .populate({
-        path: 'customerId',
-        populate: {
-          path: 'userId',
-          model: 'User',
-          select: 'name email phone'
-        }
-      })
-      .populate('images')
-      .populate('measurements')
-      .populate({
-        path: 'designerSuggestions',
-        populate: {
-          path: 'materialRecommendations.materialId',
-          model: 'Material'
-        }
-      });
-
+    const project = await Project.findById(req.params.id).lean();
+    
     if (!project) {
       return res.status(404).json({ 
         success: false, 
         error: 'Project not found' 
       });
     }
-
-    // Check if designer is assigned to this project
-    if (project.designerId?.toString() !== designer._id.toString()) {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Not authorized to view this project' 
-      });
-    }
-
-    res.json({
-      success: true,
-      data: project
-    });
-  } catch (error) {
-    console.error('❌ Get Project For Review Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Server Error: ' + error.message 
-    });
-  }
-};
-
-// @desc    Add design suggestions
-// @route   POST /api/designer/projects/:projectId/suggestions
-// @access  Private (Designer)
-exports.addDesignSuggestions = async (req, res) => {
-  try {
-    const { projectId } = req.params;
-    const { title, description, category, materialRecommendations, notes, images } = req.body;
-
-    const designer = await Designer.findOne({ userId: req.user.id });
     
-    if (!designer) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Designer profile not found' 
-      });
-    }
-
-    const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Project not found' 
-      });
-    }
-
-    // Check if designer is assigned to this project
-    if (project.designerId?.toString() !== designer._id.toString()) {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Not authorized to modify this project' 
-      });
-    }
-
-    // Create suggestion
-    const suggestion = await DesignerSuggestion.create({
+    // Get customer with populated user data
+    const customer = await Customer.findById(project.customerId)
+      .populate('userId')
+      .lean();
+    
+    // Get measurements
+    const measurements = await Measurement.find({ projectId: project._id }).lean();
+    
+    // Get images
+    const images = await ProjectImage.find({ projectId: project._id }).lean();
+    
+    // Get existing design suggestion
+    const existingSuggestion = await DesignSuggestion.findOne({
       projectId: project._id,
-      designerId: designer._id,
-      title: title || 'Design Suggestions',
-      description: description || '',
-      category: category || 'other',
-      materialRecommendations: materialRecommendations || [],
-      notes: notes || '',
-      images: images || [],
-      status: 'submitted'
-    });
-
-    // Add to project
-    project.designerSuggestions.push(suggestion._id);
-    project.designerReviewed = true;
-    project.designerReviewedAt = Date.now();
-    project.status = 'quoting'; // Update status
-    await project.save();
-
-    // Notify seller
-    const seller = await User.findOne({ role: 'seller' });
-    if (seller) {
-      await createNotification(
-        seller._id,
-        'New Design Suggestions',
-        `Designer has added suggestions for project: ${project.title}`,
-        'info',
-        `/seller/projects/${project._id}`
-      );
-    }
-
-    res.status(201).json({
-      success: true,
-      data: suggestion,
-      message: 'Design suggestions added successfully'
-    });
-  } catch (error) {
-    console.error('❌ Add Design Suggestions Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Server Error: ' + error.message 
-    });
-  }
-};
-
-// @desc    Get material recommendations for project
-// @route   GET /api/designer/projects/:projectId/recommendations
-// @access  Private (Designer)
-exports.getMaterialRecommendations = async (req, res) => {
-  try {
-    const { projectId } = req.params;
+      status: { $in: ['DRAFT', 'SUBMITTED'] }
+    })
+    .populate('recommendations.materialId')
+    .lean();
     
-    const project = await Project.findById(projectId)
-      .populate('measurements');
-
-    if (!project) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Project not found' 
-      });
+    // Extract customer information correctly
+    let customerName = 'Unknown';
+    let customerEmail = '';
+    let customerPhone = '';
+    
+    if (customer) {
+      if (customer.userId) {
+        customerName = customer.userId.name || customer.name || 'Unknown';
+        customerEmail = customer.userId.email || customer.email || '';
+        customerPhone = customer.userId.phone || customer.phone || '';
+      } else {
+        customerName = customer.name || 'Unknown';
+        customerEmail = customer.email || '';
+        customerPhone = customer.phone || '';
+      }
     }
-
+    
     // Calculate total area
-    const totalArea = project.measurements?.reduce((sum, m) => {
-      return sum + (m.areaSqFt || m.areaSqM || 0);
-    }, 0) || 0;
-
-    // Get popular materials based on category
-    const materials = await Material.find({ isActive: true })
-      .limit(20)
-      .lean();
-
-    // Categorize materials
-    const categorizedMaterials = {
-      tiles: materials.filter(m => m.category === 'tiles'),
-      wood: materials.filter(m => m.category === 'wood'),
-      glass: materials.filter(m => m.category === 'glass'),
-      paints: materials.filter(m => m.category === 'paints'),
-      hardware: materials.filter(m => m.category === 'hardware'),
-      others: materials.filter(m => m.category === 'others')
+    const totalArea = measurements.reduce((sum, m) => {
+      return sum + (m.areaSqFt || m.area || 0);
+    }, 0);
+    
+    const formattedProject = {
+      _id: project._id.toString(),
+      title: project.title,
+      description: project.description,
+      status: project.status,
+      measurementUnit: project.measurementUnit || 'feet',
+      totalArea: totalArea,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      
+      // Customer info at top level
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerPhone: customerPhone,
+      
+      // Full customer object
+      customer: {
+        _id: customer?._id?.toString(),
+        name: customerName,
+        email: customerEmail,
+        phone: customerPhone,
+        address: customer?.address,
+        userId: customer?.userId
+      },
+      
+      // Arrays
+      measurements: measurements.map(m => ({
+        ...m,
+        _id: m._id.toString()
+      })),
+      images: images.map(img => ({
+        ...img,
+        _id: img._id.toString()
+      })),
+      
+      // Counts
+      roomCount: measurements.length,
+      photoCount: images.length
     };
-
-    res.json({
-      success: true,
+    
+    res.json({ 
+      success: true, 
       data: {
-        totalArea,
-        measurements: project.measurements,
-        materials: categorizedMaterials,
-        projectTitle: project.title
+        project: formattedProject,
+        existingSuggestion: existingSuggestion || null
       }
     });
+    
   } catch (error) {
-    console.error('❌ Get Material Recommendations Error:', error);
+    console.error('Error in getProjectForDesign:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Server Error: ' + error.message 
+      error: error.message 
     });
   }
 };
 
-// @desc    Update suggestion status
-// @route   PUT /api/designer/suggestions/:suggestionId
-// @access  Private (Designer/Seller)
-exports.updateSuggestionStatus = async (req, res) => {
+// @desc    Create or update design suggestion
+// @route   POST /api/designer/suggestions
+// @access  Private (Designer only)
+exports.createDesignSuggestion = async (req, res) => {
   try {
-    const { suggestionId } = req.params;
-    const { status, feedback } = req.body;
-
-    const suggestion = await DesignerSuggestion.findById(suggestionId)
-      .populate('projectId');
-
-    if (!suggestion) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Suggestion not found' 
+    const { 
+      projectId, 
+      recommendations, 
+      designNotes,
+      suggestedTheme,
+      colorScheme,
+      estimatedTimeline,
+      status = 'SUBMITTED'
+    } = req.body;
+    
+    console.log('Creating design suggestion for project:', projectId);
+    
+    // Find designer profile
+    const Designer = require('../models/Designer');
+    const designer = await Designer.findOne({ userId: req.user.id });
+    
+    if (!designer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Designer profile not found'
       });
     }
-
-    suggestion.status = status;
-    if (feedback) {
-      suggestion.feedback = feedback;
-    }
-    if (status === 'reviewed' || status === 'approved' || status === 'rejected') {
-      suggestion.reviewedAt = Date.now();
-      suggestion.reviewedBy = req.user.id;
-    }
-    await suggestion.save();
-
-    res.json({
-      success: true,
-      data: suggestion,
-      message: `Suggestion ${status} successfully`
-    });
-  } catch (error) {
-    console.error('❌ Update Suggestion Status Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Server Error: ' + error.message 
-    });
-  }
-};
-
-// @desc    Send suggestions to seller
-// @route   POST /api/designer/projects/:projectId/send-to-seller
-// @access  Private (Designer)
-exports.sendToSeller = async (req, res) => {
-  try {
-    const { projectId } = req.params;
-
-    const project = await Project.findById(projectId)
-      .populate('designerSuggestions');
-
+    
+    // Validate project exists
+    const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ 
         success: false, 
         error: 'Project not found' 
       });
     }
-
-    // Check if there are any suggestions
-    if (!project.designerSuggestions || project.designerSuggestions.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No suggestions to send. Please add suggestions first.' 
-      });
-    }
-
-    // Update project status
-    project.status = 'quoted';
-    await project.save();
-
-    // Notify seller
-    const seller = await User.findOne({ role: 'seller' });
-    if (seller) {
-      await createNotification(
-        seller._id,
-        'Design Suggestions Ready',
-        `Designer has completed review for project: ${project.title}`,
-        'success',
-        `/seller/create-quotation/${project._id}`
-      );
-    }
-
-    res.json({
-      success: true,
-      message: 'Suggestions sent to seller successfully',
-      data: project
+    
+    // Check for existing draft or submitted suggestion
+    let suggestion = await DesignSuggestion.findOne({
+      projectId,
+      status: { $in: ['DRAFT', 'SUBMITTED'] }
     });
+    
+    if (suggestion) {
+      // Update existing suggestion
+      suggestion.recommendations = recommendations;
+      suggestion.designNotes = designNotes;
+      suggestion.suggestedTheme = suggestedTheme;
+      suggestion.colorScheme = colorScheme;
+      suggestion.estimatedTimeline = estimatedTimeline;
+      suggestion.status = status;
+      suggestion.version += 1;
+      
+      await suggestion.save();
+      console.log('Updated existing suggestion:', suggestion._id);
+    } else {
+      // Create new suggestion
+      suggestion = await DesignSuggestion.create({
+        projectId,
+        designerId: designer._id,
+        recommendations,
+        designNotes,
+        suggestedTheme,
+        colorScheme,
+        estimatedTimeline,
+        status
+      });
+      console.log('Created new suggestion:', suggestion._id);
+    }
+    
+    // Update project status if suggestion is submitted
+    if (status === 'SUBMITTED') {
+      project.status = 'DESIGN_COMPLETED';
+      project.designSuggestionId = suggestion._id;
+      project.designerReviewed = true;
+      project.designerReviewedAt = new Date();
+      await project.save();
+    }
+    
+    res.json({ 
+      success: true, 
+      data: suggestion,
+      message: status === 'SUBMITTED' 
+        ? 'Design suggestion submitted successfully' 
+        : 'Design suggestion saved as draft'
+    });
+    
   } catch (error) {
-    console.error('❌ Send To Seller Error:', error);
+    console.error('Error in createDesignSuggestion:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Server Error: ' + error.message 
+      error: error.message 
+    });
+  }
+};
+
+// @desc    Get designer's past suggestions
+// @route   GET /api/designer/suggestions/history
+// @access  Private (Designer only)
+exports.getSuggestionHistory = async (req, res) => {
+  try {
+    console.log('Fetching suggestion history for user:', req.user.id);
+    
+    // Find designer profile
+    const Designer = require('../models/Designer');
+    const designer = await Designer.findOne({ userId: req.user.id });
+    
+    if (!designer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Designer profile not found'
+      });
+    }
+    
+    const suggestions = await DesignSuggestion.find({
+      designerId: designer._id,
+      status: { $ne: 'DRAFT' }
+    })
+    .populate({
+      path: 'projectId',
+      select: 'title status createdAt'
+    })
+    .populate({
+      path: 'recommendations.materialId',
+      select: 'name price unit category'
+    })
+    .sort('-createdAt')
+    .limit(50)
+    .lean();
+    
+    console.log(`Found ${suggestions.length} suggestions`);
+    
+    res.json({
+      success: true,
+      count: suggestions.length,
+      data: suggestions
+    });
+    
+  } catch (error) {
+    console.error('Error in getSuggestionHistory:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+};
+
+// @desc    Get materials for recommendation
+// @route   GET /api/designer/materials
+// @access  Private (Designer only)
+exports.getMaterials = async (req, res) => {
+  try {
+    const { category } = req.query;
+    const query = { isActive: true };
+    
+    if (category) {
+      query.category = category;
+    }
+    
+    console.log('Fetching materials with query:', query);
+    
+    const materials = await Material.find(query)
+      .sort('name')
+      .limit(100)
+      .lean();
+    
+    // Add GST info manually based on category
+    const materialsWithGST = materials.map(material => {
+      if (!material.gstRate) {
+        const gstRates = {
+          'tiles': 5,
+          'wood': 12,
+          'glass': 18,
+          'paints': 18,
+          'hardware': 12,
+          'electrical': 18,
+          'plumbing': 18,
+          'other': 18
+        };
+        material.gstRate = gstRates[material.category] || 18;
+      }
+      return material;
+    });
+    
+    console.log(`Found ${materialsWithGST.length} materials`);
+    
+    res.json({
+      success: true,
+      count: materialsWithGST.length,
+      data: materialsWithGST
+    });
+    
+  } catch (error) {
+    console.error('Error in getMaterials:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
 };
