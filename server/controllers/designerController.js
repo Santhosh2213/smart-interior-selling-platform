@@ -292,7 +292,7 @@ exports.createDesignSuggestion = async (req, res) => {
     }
     
     // Validate project exists
-    const project = await Project.findById(projectId);
+    const project = await Project.findById(projectId).populate('customerId');
     if (!project) {
       return res.status(404).json({ 
         success: false, 
@@ -328,7 +328,8 @@ exports.createDesignSuggestion = async (req, res) => {
         suggestedTheme,
         colorScheme,
         estimatedTimeline,
-        status
+        status,
+        customerResponse: 'PENDING'
       });
       console.log('Created new suggestion:', suggestion._id);
     }
@@ -340,13 +341,52 @@ exports.createDesignSuggestion = async (req, res) => {
       project.designerReviewed = true;
       project.designerReviewedAt = new Date();
       await project.save();
+      
+      // Get customer user ID
+      const Customer = require('../models/Customer');
+      const customer = await Customer.findById(project.customerId).populate('userId');
+      
+      // Send notification to customer
+      if (customer && customer.userId) {
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          userId: customer.userId._id,
+          type: 'DESIGN_SUBMITTED',
+          title: 'Design Suggestions Ready',
+          message: `Designer has submitted suggestions for your project: ${project.title}`,
+          relatedId: project._id,
+          onModel: 'Project',
+          actionUrl: `/customer/projects/${project._id}`
+        });
+        console.log('Notification sent to customer');
+      }
+      
+      // Send notification to seller (if assigned)
+      if (project.assignedSeller) {
+        const Seller = require('../models/Seller');
+        const seller = await Seller.findById(project.assignedSeller).populate('userId');
+        
+        if (seller && seller.userId) {
+          const Notification = require('../models/Notification');
+          await Notification.create({
+            userId: seller.userId._id,
+            type: 'DESIGN_SUBMITTED',
+            title: 'Design Suggestions Ready',
+            message: `Design submitted for project: ${project.title}`,
+            relatedId: project._id,
+            onModel: 'Project',
+            actionUrl: `/seller/queue/${project._id}`
+          });
+          console.log('Notification sent to seller');
+        }
+      }
     }
     
     res.json({ 
       success: true, 
       data: suggestion,
       message: status === 'SUBMITTED' 
-        ? 'Design suggestion submitted successfully' 
+        ? 'Design suggestion submitted successfully. Customer has been notified.' 
         : 'Design suggestion saved as draft'
     });
     

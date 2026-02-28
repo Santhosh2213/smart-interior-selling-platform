@@ -36,26 +36,27 @@ exports.getNotifications = async (req, res) => {
 // @desc    Mark notification as read
 // @route   PUT /api/notifications/:id/read
 // @access  Private
+// @desc    Mark notification as read
 exports.markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findById(req.params.id);
-
+    
     if (!notification) {
       return res.status(404).json({ success: false, error: 'Notification not found' });
     }
-
+    
     if (notification.userId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, error: 'Not authorized' });
     }
-
-    notification.read = true;
-    notification.readAt = Date.now();
+    
+    notification.isRead = true;
+    notification.readAt = new Date();
     await notification.save();
-
+    
     res.json({ success: true, data: notification });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: 'Server Error' });
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -102,17 +103,34 @@ exports.deleteNotification = async (req, res) => {
 
 // @desc    Create notification (internal use)
 // @access  Internal
-exports.createNotification = async (userId, title, message, type = 'info', link = null, metadata = null) => {
+exports.createNotification = async (userId, type, title, message, relatedId, onModel) => {
   try {
     await Notification.create({
       userId,
+      type,
       title,
       message,
-      type,
-      link,
-      metadata
+      relatedId,
+      onModel
     });
   } catch (error) {
     console.error('Error creating notification:', error);
+  }
+};
+
+// @desc    Get user notifications
+exports.getUserNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({ userId: req.user.id })
+      .sort('-createdAt')
+      .limit(50);
+    
+    res.json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };

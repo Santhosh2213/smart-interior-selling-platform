@@ -117,7 +117,16 @@ const ProjectConsultation = () => {
     if (field === 'materialId' || field === 'quantity') {
       const material = materials.find(m => m._id === updated[index].materialId);
       if (material && updated[index].quantity > 0) {
-        updated[index].estimatedCost = material.price * updated[index].quantity;
+        // Use pricePerUnit or price field
+        const price = material.pricePerUnit || material.price || 0;
+        updated[index].estimatedCost = price * updated[index].quantity;
+        updated[index].unit = material.unit || updated[index].unit;
+        console.log('Calculated cost:', {
+          material: material.name,
+          price,
+          quantity: updated[index].quantity,
+          total: updated[index].estimatedCost
+        });
       }
     }
     
@@ -382,18 +391,18 @@ const ProjectConsultation = () => {
                         </select>
 
                         <select
-                          value={rec.materialId}
-                          onChange={(e) => handleRecommendationChange(index, 'materialId', e.target.value)}
-                          className="border rounded px-2 py-1 text-sm"
-                          required
-                        >
-                          <option value="">Select Material</option>
-                          {materials.map(m => (
-                            <option key={m._id} value={m._id}>
-                              {m.name} - ₹{m.price}/{m.unit}
-                            </option>
-                          ))}
-                        </select>
+  value={rec.materialId}
+  onChange={(e) => handleRecommendationChange(index, 'materialId', e.target.value)}
+  className="border rounded px-2 py-1 text-sm"
+  required
+>
+  <option value="">Select Material</option>
+  {materials.map(m => (
+    <option key={m._id} value={m._id}>
+      {m.name} - ₹{(m.pricePerUnit || m.price || 0)}/{m.unit}
+    </option>
+  ))}
+</select>
 
                         <input
                           type="number"

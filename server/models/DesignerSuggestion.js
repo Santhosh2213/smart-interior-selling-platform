@@ -15,6 +15,29 @@ const designerSuggestionSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  // Customer interaction
+  customerResponse: {
+    type: String,
+    enum: ['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'],
+    default: 'PENDING'
+  },
+  customerResponseAt: Date,
+  customerResponseNotes: String,
+  
+  // For change requests
+  changeRequests: [{
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    notes: String,
+    requestedAt: Date,
+    status: {
+      type: String,
+      enum: ['PENDING', 'IMPLEMENTED', 'REJECTED'],
+      default: 'PENDING'
+    }
+  }],
   materialRecommendations: [{
     materialId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -32,8 +55,20 @@ const designerSuggestionSchema = new mongoose.Schema({
     enum: ['draft', 'submitted', 'approved', 'rejected'],
     default: 'draft'
   }
+},{  // Notification tracking
+customerNotified: {
+  type: Boolean,
+  default: false
+},
+customerNotifiedAt: Date,
+sellerNotified: {
+  type: Boolean,
+  default: false
+},
+sellerNotifiedAt: Date
 }, {
-  timestamps: true
+timestamps: true
 });
+
 
 module.exports = mongoose.model('DesignerSuggestion', designerSuggestionSchema);

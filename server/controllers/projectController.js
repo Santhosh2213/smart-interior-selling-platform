@@ -508,3 +508,95 @@ exports.assignDesigner = async (req, res) => {
     });
   }
 };
+
+// @desc    Customer response to design suggestion
+// @route   POST /api/projects/:id/design-response
+// @access  Private (Customer)
+exports.respondToDesign = async (req, res) => {
+  try {
+    const { response, notes } = req.body;
+    const project = await Project.findById(req.params.id);
+    
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    // Check if customer owns this project
+    const customer = await Customer.findOne({ userId: req.user.id });
+    if (!customer || project.customerId.toString() !== customer._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized'
+      });
+    }
+
+    // Get design suggestion
+    const suggestion = await DesignSuggestion.findById(project.designSuggestionId);
+    if (!suggestion) {
+      return res.status(404).json({
+        success: false,
+        error: 'Design suggestion not found'
+      });
+    }
+
+    // Update suggestion with customer response
+    suggestion.customerResponse = response;
+    suggestion.customerResponseAt = new Date();
+    suggestion.customerResponseNotes = notes;
+    await suggestion.save();
+
+    // Update project status
+    project.status = response === 'APPROVED' ? 'DESIGN_APPROVED' : 
+                     response === 'REJECTED' ? 'DESIGN_REJECTED' : 
+                     'DESIGN_CHANGES_REQUESTED';
+    await project.save();
+
+    // Notify designer
+    const designer = await Designer.findById(suggestion.designerId).populate('userId');
+    if (designer && designer.userId) {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        userId: designer.userId._id,
+        type: 'DESIGN_RESPONSE',
+        title: `Design ${response.toLowerCase()}`,
+        message: `Customer has ${response.toLowerCase()} the design for ${project.title}`,
+        relatedId: project._id,
+        onModel: 'Project',
+        actionUrl: `/designer/consultation/${project._id}`
+      });
+    }
+
+    // Notify seller
+    if (project.assignedSeller) {
+      const seller = await Seller.findById(project.assignedSeller).populate('userId');
+      if (seller && seller.userId) {
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          userId: seller.userId._id,
+          type: 'DESIGN_RESPONSE',
+          title: `Design ${response.toLowerCase()}`,
+          message: `Customer has ${response.toLowerCase()} the design for ${project.title}`,
+          relatedId: project._id,
+          onModel: 'Project',
+          actionUrl: `/seller/queue/${project._id}`
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Design ${response.toLowerCase()} successfully`,
+      data: { project, suggestion }
+    });
+
+  } catch (error) {
+    console.error('Error in respondToDesign:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
