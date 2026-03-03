@@ -11,7 +11,11 @@ const {
   addMeasurement,
   submitProject,
   assignSeller,
-  assignDesigner
+  assignDesigner,
+  getProjectDesign,
+  respondToDesign,
+  requestDesignChanges,
+  getDesignHistory
 } = require('../controllers/projectController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -29,11 +33,17 @@ router.delete('/:id', authorize('customer'), deleteProject);
 router.post('/:id/measurements', authorize('customer'), addMeasurement);
 router.put('/:id/submit', authorize('customer'), submitProject);
 
+// Design review routes (customer)
+router.get('/:id/design', authorize('customer'), getProjectDesign);
+router.post('/:id/design-response', authorize('customer'), respondToDesign);
+router.post('/:id/design-changes', authorize('customer'), requestDesignChanges);
+
 // Seller routes
 router.get('/seller/queue', authorize('seller'), getSellerProjectQueue);
 
 // Shared routes (accessible by multiple roles)
 router.get('/:id', getProjectById);
+router.get('/:id/design-history', getDesignHistory);
 
 // Assignment routes (admin/seller only)
 router.put('/:id/assign-seller', authorize('seller', 'admin'), assignSeller);

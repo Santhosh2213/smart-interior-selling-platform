@@ -1,10 +1,12 @@
 const Project = require('../models/Project');
 const Customer = require('../models/Customer');
-const Seller = require('../models/Seller'); // Add this import
-const Designer = require('../models/Designer'); // Add this import
+const Seller = require('../models/Seller');
+const Designer = require('../models/Designer');
 const Measurement = require('../models/Measurement');
 const ProjectImage = require('../models/ProjectImage');
+const DesignSuggestion = require('../models/DesignSuggestion');
 const mongoose = require('mongoose');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create new project
 // @route   POST /api/projects
@@ -412,7 +414,17 @@ exports.submitProject = async (req, res) => {
       project.assignedSeller = seller._id;
       await project.save();
       
-      // TODO: Create notification for seller
+      // Create notification for seller
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        userId: seller.userId,
+        type: 'PROJECT_SUBMITTED',
+        title: 'New Project Submitted',
+        message: `A new project "${project.title}" has been submitted and needs assignment`,
+        relatedId: project._id,
+        onModel: 'Project',
+        actionUrl: `/seller/queue/${project._id}`
+      });
     }
 
     res.status(200).json({
@@ -444,7 +456,7 @@ exports.assignSeller = async (req, res) => {
       });
     }
 
-    const seller = await Seller.findById(sellerId);
+    const seller = await Seller.findById(sellerId).populate('userId');
     if (!seller) {
       return res.status(404).json({
         success: false,
@@ -453,7 +465,20 @@ exports.assignSeller = async (req, res) => {
     }
 
     project.assignedSeller = sellerId;
+    project.sellerAssignedAt = new Date();
     await project.save();
+
+    // Notify seller
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      userId: seller.userId._id,
+      type: 'PROJECT_ASSIGNED',
+      title: 'Project Assigned to You',
+      message: `Project "${project.title}" has been assigned to you`,
+      relatedId: project._id,
+      onModel: 'Project',
+      actionUrl: `/seller/queue/${project._id}`
+    });
 
     res.status(200).json({
       success: true,
@@ -484,7 +509,7 @@ exports.assignDesigner = async (req, res) => {
       });
     }
 
-    const designer = await Designer.findById(designerId);
+    const designer = await Designer.findById(designerId).populate('userId');
     if (!designer) {
       return res.status(404).json({
         success: false,
@@ -493,7 +518,21 @@ exports.assignDesigner = async (req, res) => {
     }
 
     project.assignedDesigner = designerId;
+    project.designerAssignedAt = new Date();
+    project.status = 'PENDING_DESIGN';
     await project.save();
+
+    // Notify designer
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      userId: designer.userId._id,
+      type: 'DESIGN_ASSIGNED',
+      title: 'New Design Project Assigned',
+      message: `Project "${project.title}" has been assigned to you for design`,
+      relatedId: project._id,
+      onModel: 'Project',
+      actionUrl: `/designer/consultation/${project._id}`
+    });
 
     res.status(200).json({
       success: true,
@@ -509,7 +548,68 @@ exports.assignDesigner = async (req, res) => {
   }
 };
 
-// @desc    Customer response to design suggestion
+// @desc    Get project design for customer review
+// @route   GET /api/projects/:id/design
+// @access  Private (Customer)
+exports.getProjectDesign = async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    // Check if customer owns this project
+    const customer = await Customer.findOne({ userId: req.user.id });
+    if (!customer || project.customerId.toString() !== customer._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized'
+      });
+    }
+
+    // Get the latest design suggestion
+    const design = await DesignSuggestion.findOne({ 
+      projectId: project._id,
+      status: { $in: ['SUBMITTED', 'PENDING_CUSTOMER', 'CHANGES_REQUESTED'] }
+    })
+    .populate('recommendations.materialId')
+    .populate('designerId', 'name')
+    .lean();
+
+    if (!design) {
+      return res.status(404).json({
+        success: false,
+        error: 'No design found for this project'
+      });
+    }
+
+    // Mark as viewed
+    await DesignSuggestion.findByIdAndUpdate(design._id, {
+      customerViewedAt: new Date()
+    });
+
+    res.json({
+      success: true,
+      data: {
+        project,
+        design: {
+          ...design,
+          customerViewedAt: new Date()
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in getProjectDesign:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Customer response to design
 // @route   POST /api/projects/:id/design-response
 // @access  Private (Customer)
 exports.respondToDesign = async (req, res) => {
@@ -546,43 +646,55 @@ exports.respondToDesign = async (req, res) => {
     suggestion.customerResponse = response;
     suggestion.customerResponseAt = new Date();
     suggestion.customerResponseNotes = notes;
+    suggestion.status = response === 'APPROVED' ? 'APPROVED' : 
+                       response === 'REJECTED' ? 'REJECTED' : 
+                       'CHANGES_REQUESTED';
     await suggestion.save();
 
     // Update project status
+    project.designStatus = response === 'APPROVED' ? 'DESIGN_APPROVED' : 
+                          response === 'REJECTED' ? 'DESIGN_REJECTED' : 
+                          'CHANGES_REQUESTED';
     project.status = response === 'APPROVED' ? 'DESIGN_APPROVED' : 
-                     response === 'REJECTED' ? 'DESIGN_REJECTED' : 
-                     'DESIGN_CHANGES_REQUESTED';
+                    response === 'REJECTED' ? 'DESIGN_REJECTED' : 
+                    'CHANGES_REQUESTED';
     await project.save();
 
     // Notify designer
     const designer = await Designer.findById(suggestion.designerId).populate('userId');
     if (designer && designer.userId) {
-      const Notification = require('../models/Notification');
-      await Notification.create({
-        userId: designer.userId._id,
-        type: 'DESIGN_RESPONSE',
-        title: `Design ${response.toLowerCase()}`,
-        message: `Customer has ${response.toLowerCase()} the design for ${project.title}`,
-        relatedId: project._id,
-        onModel: 'Project',
-        actionUrl: `/designer/consultation/${project._id}`
-      });
+      await createNotification(
+        designer.userId._id,
+        response === 'APPROVED' ? 'DESIGN_APPROVED' : 
+        response === 'REJECTED' ? 'DESIGN_REJECTED' : 
+        'DESIGN_CHANGES_REQUESTED',
+        response === 'APPROVED' ? '✓ Design Approved!' :
+        response === 'REJECTED' ? '✗ Design Rejected' :
+        '✏️ Changes Requested',
+        response === 'APPROVED' ? `Customer approved the design for ${project.title}` :
+        response === 'REJECTED' ? `Customer rejected the design for ${project.title}` :
+        `Customer requested changes for ${project.title}: ${notes}`,
+        project._id,
+        'Project',
+        `/designer/consultation/${project._id}`,
+        { response, notes }
+      );
     }
 
-    // Notify seller
-    if (project.assignedSeller) {
+    // Notify seller if approved
+    if (response === 'APPROVED' && project.assignedSeller) {
       const seller = await Seller.findById(project.assignedSeller).populate('userId');
       if (seller && seller.userId) {
-        const Notification = require('../models/Notification');
-        await Notification.create({
-          userId: seller.userId._id,
-          type: 'DESIGN_RESPONSE',
-          title: `Design ${response.toLowerCase()}`,
-          message: `Customer has ${response.toLowerCase()} the design for ${project.title}`,
-          relatedId: project._id,
-          onModel: 'Project',
-          actionUrl: `/seller/queue/${project._id}`
-        });
+        await createNotification(
+          seller.userId._id,
+          'DESIGN_APPROVED',
+          '🎨 Design Approved - Ready for Quotation',
+          `Design for project ${project.title} has been approved by customer`,
+          project._id,
+          'Project',
+          `/seller/create-quotation/${project._id}`,
+          { designId: suggestion._id }
+        );
       }
     }
 
@@ -594,9 +706,117 @@ exports.respondToDesign = async (req, res) => {
 
   } catch (error) {
     console.error('Error in respondToDesign:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Request design changes
+// @route   POST /api/projects/:id/design-changes
+// @access  Private (Customer)
+exports.requestDesignChanges = async (req, res) => {
+  try {
+    const { type, description } = req.body;
+    const project = await Project.findById(req.params.id);
+    
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    // Check if customer owns this project
+    const customer = await Customer.findOne({ userId: req.user.id });
+    if (!customer || project.customerId.toString() !== customer._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized'
+      });
+    }
+
+    // Get design suggestion
+    const suggestion = await DesignSuggestion.findById(project.designSuggestionId);
+    if (!suggestion) {
+      return res.status(404).json({
+        success: false,
+        error: 'Design suggestion not found'
+      });
+    }
+
+    // Add change request
+    if (!suggestion.changeRequests) {
+      suggestion.changeRequests = [];
+    }
+    
+    suggestion.changeRequests.push({
+      requestedBy: req.user.id,
+      requestType: type || 'design_change',
+      description,
+      status: 'pending',
+      createdAt: new Date()
     });
+    
+    suggestion.customerResponse = 'CHANGES_REQUESTED';
+    suggestion.customerResponseAt = new Date();
+    suggestion.customerResponseNotes = description;
+    suggestion.status = 'CHANGES_REQUESTED';
+    await suggestion.save();
+
+    // Update project
+    project.designStatus = 'CHANGES_REQUESTED';
+    project.status = 'CHANGES_REQUESTED';
+    await project.save();
+
+    // Notify designer
+    const designer = await Designer.findById(suggestion.designerId).populate('userId');
+    if (designer && designer.userId) {
+      await createNotification(
+        designer.userId._id,
+        'DESIGN_CHANGES_REQUESTED',
+        '✏️ Changes Requested',
+        `Customer requested changes for ${project.title}: ${description}`,
+        project._id,
+        'Project',
+        `/designer/consultation/${project._id}`,
+        { 
+          changeRequest: suggestion.changeRequests[suggestion.changeRequests.length - 1],
+          description 
+        }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Change request sent to designer',
+      data: { suggestion }
+    });
+
+  } catch (error) {
+    console.error('Error in requestDesignChanges:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Get design history for a project
+// @route   GET /api/projects/:id/design-history
+// @access  Private
+exports.getDesignHistory = async (req, res) => {
+  try {
+    const designs = await DesignSuggestion.find({ 
+      projectId: req.params.id 
+    })
+    .sort('-version')
+    .populate('designerId', 'name')
+    .lean();
+    
+    res.json({
+      success: true,
+      count: designs.length,
+      data: designs
+    });
+    
+  } catch (error) {
+    console.error('Error in getDesignHistory:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };

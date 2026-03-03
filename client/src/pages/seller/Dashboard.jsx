@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { getSellerDashboard } from '../../services/sellerService';
 import { 
-  DocumentTextIcon, 
-  ClockIcon, 
-  CheckCircleIcon,
+  ClipboardDocumentListIcon,
   CurrencyRupeeIcon,
-  ArrowPathIcon,
+  CubeIcon,
+  DocumentTextIcon,
+  ArrowRightIcon,
+  ClockIcon,
+  CheckCircleIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
-import { dashboardService } from '../../services/dashboardService';
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
 
@@ -22,293 +24,266 @@ const SellerDashboard = () => {
       completed: 0,
       totalRevenue: 0
     },
-    recentProjects: [],
-    recentQuotations: []
+    recentProjects: []
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboardData();
+    loadDashboardData();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
-      setError(null);
-      console.log('Fetching seller dashboard data...');
+      const response = await getSellerDashboard();
+      console.log('Dashboard data received:', response);
       
-      const response = await dashboardService.getSellerDashboard();
-      console.log('Dashboard response:', response);
-      
-      if (response.success && response.data) {
-        setDashboardData(response.data);
-      } else {
-        throw new Error('Invalid response format');
-      }
+      setDashboardData({
+        stats: response.stats || {
+          totalProjects: 0,
+          pending: 0,
+          inProgress: 0,
+          quoted: 0,
+          completed: 0,
+          totalRevenue: 0
+        },
+        recentProjects: response.recentProjects || []
+      });
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to load dashboard data');
-      toast.error(error.response?.data?.error || 'Failed to load dashboard data');
+      console.error('Error loading dashboard:', error);
+      toast.error('Failed to load dashboard');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount || 0);
-  };
-
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
-      quoting: { color: 'bg-blue-100 text-blue-800', label: 'In Progress' },
-      quoted: { color: 'bg-purple-100 text-purple-800', label: 'Quoted' },
-      completed: { color: 'bg-green-100 text-green-800', label: 'Completed' },
-      draft: { color: 'bg-gray-100 text-gray-800', label: 'Draft' }
-    };
-    
-    const config = statusConfig[status] || statusConfig.draft;
-    
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
+  const { stats, recentProjects } = dashboardData;
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader size="lg" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-          <ExclamationCircleIcon className="h-16 w-16 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-red-700 mb-2">Failed to Load Dashboard</h2>
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={fetchDashboardData}
-            className="btn-primary inline-flex items-center"
-          >
-            <ArrowPathIcon className="h-5 w-5 mr-2" />
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
+    return <Loader />;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Seller Dashboard</h1>
-        <button
-          onClick={fetchDashboardData}
-          className="btn-secondary flex items-center"
-          title="Refresh"
-        >
-          <ArrowPathIcon className="h-5 w-5" />
-        </button>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Seller Dashboard</h1>
+          <p className="text-gray-600">Welcome back! Here's your business overview.</p>
+        </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Projects</p>
-              <p className="text-3xl font-bold">{dashboardData.stats.totalProjects}</p>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total Projects */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-blue-100 p-3 rounded-lg">
+                <ClipboardDocumentListIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-900">{stats.totalProjects}</span>
             </div>
-            <DocumentTextIcon className="h-8 w-8 text-primary-600" />
+            <h3 className="text-gray-600 font-medium">Total Projects</h3>
+          </div>
+
+          {/* Pending */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-yellow-100 p-3 rounded-lg">
+                <ClockIcon className="h-6 w-6 text-yellow-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-900">{stats.pending}</span>
+            </div>
+            <h3 className="text-gray-600 font-medium">Pending</h3>
+          </div>
+
+          {/* Quoted */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-green-100 p-3 rounded-lg">
+                <CheckCircleIcon className="h-6 w-6 text-green-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-900">{stats.quoted}</span>
+            </div>
+            <h3 className="text-gray-600 font-medium">Quoted</h3>
+          </div>
+
+          {/* Revenue */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <CurrencyRupeeIcon className="h-6 w-6 text-purple-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-900">
+                ₹{stats.totalRevenue?.toLocaleString('en-IN') || 0}
+              </span>
+            </div>
+            <h3 className="text-gray-600 font-medium">Total Revenue</h3>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-3xl font-bold">{dashboardData.stats.pending}</p>
-            </div>
-            <ClockIcon className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">In Progress</p>
-              <p className="text-3xl font-bold">{dashboardData.stats.inProgress}</p>
-            </div>
-            <ArrowPathIcon className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Quoted</p>
-              <p className="text-3xl font-bold">{dashboardData.stats.quoted}</p>
-            </div>
-            <DocumentTextIcon className="h-8 w-8 text-purple-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Completed</p>
-              <p className="text-3xl font-bold">{dashboardData.stats.completed}</p>
-            </div>
-            <CheckCircleIcon className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Revenue</p>
-              <p className="text-3xl font-bold">{formatCurrency(dashboardData.stats.totalRevenue)}</p>
-            </div>
-            <CurrencyRupeeIcon className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Link
-          to="/seller/project-queue"
-          className="bg-primary-50 p-6 rounded-lg hover:bg-primary-100 transition-colors"
-        >
-          <h3 className="font-semibold text-primary-900 mb-2">Project Queue</h3>
-          <p className="text-sm text-primary-700">View and manage incoming projects</p>
-          {dashboardData.stats.pending > 0 && (
-            <span className="mt-2 inline-flex items-center px-2 py-1 bg-primary-600 text-white text-xs font-medium rounded-full">
-              {dashboardData.stats.pending} pending
-            </span>
-          )}
-        </Link>
-
-        <Link
-          to="/seller/quotations"
-          className="bg-blue-50 p-6 rounded-lg hover:bg-blue-100 transition-colors"
-        >
-          <h3 className="font-semibold text-blue-900 mb-2">Quotations</h3>
-          <p className="text-sm text-blue-700">Create and manage quotations</p>
-          {dashboardData.stats.quoted > 0 && (
-            <span className="mt-2 inline-flex items-center px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-full">
-              {dashboardData.stats.quoted} active
-            </span>
-          )}
-        </Link>
-
-        <Link
-          to="/seller/materials"
-          className="bg-green-50 p-6 rounded-lg hover:bg-green-100 transition-colors"
-        >
-          <h3 className="font-semibold text-green-900 mb-2">Materials</h3>
-          <p className="text-sm text-green-700">Manage material database</p>
-        </Link>
-      </div>
-
-      {/* Recent Projects */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Recent Projects</h2>
-          <Link to="/seller/project-queue" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-            View All
-          </Link>
-        </div>
-
-        {dashboardData.recentProjects.length > 0 ? (
-          <div className="space-y-4">
-            {dashboardData.recentProjects.map((project) => (
-              <div key={project._id} className="flex items-center justify-between border-b pb-4 last:border-0">
-                <div>
-                  <h3 className="font-medium text-gray-900">{project.title}</h3>
-                  <p className="text-sm text-gray-600">Customer: {project.customerName}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(project.createdAt).toLocaleDateString()}
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Project Queue */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Project Queue Card */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Project Queue</h2>
+                <Link 
+                  to="/seller/queue" 
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+                >
+                  View All
+                  <ArrowRightIcon className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
+              <p className="text-gray-600 mb-4">View and manage incoming projects</p>
+              
+              {recentProjects.length > 0 ? (
+                <div className="space-y-4">
+                  {recentProjects.map((project) => (
+                    <div key={project._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-gray-900">{project.title}</h3>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          project.status === 'pending' || project.status === 'PENDING_DESIGN' 
+                            ? 'bg-yellow-100 text-yellow-800'
+                          : project.status === 'draft' 
+                            ? 'bg-gray-100 text-gray-800'
+                          : project.status === 'quoted' || project.status === 'DESIGN_APPROVED'
+                            ? 'bg-green-100 text-green-800'
+                          : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {project.status === 'PENDING_DESIGN' ? 'Pending Design' : project.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Customer: {project.customerName || 'Unknown'}
+                      </p>
+                      <p className="text-xs text-gray-500 mb-3">
+                        Submitted: {new Date(project.createdAt).toLocaleDateString('en-IN')}
+                      </p>
+                      <Link
+                        to={`/seller/quotations/create/${project._id}`}
+                        className="inline-flex items-center text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Create Quote
+                        <ArrowRightIcon className="h-4 w-4 ml-2" />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500">No recent projects</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Projects will appear here when customers submit them
                   </p>
                 </div>
-                <div className="flex items-center space-x-3">
-                  {getStatusBadge(project.status)}
-                  <Link
-                    to={`/seller/create-quotation/${project._id}`}
-                    className="btn-primary text-sm px-3 py-1"
-                  >
-                    Create Quote
-                  </Link>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Link
+                  to="/seller/materials"
+                  className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-center"
+                >
+                  <CubeIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="font-medium text-gray-900">Manage Materials</p>
+                  <p className="text-sm text-gray-500">Add or update materials</p>
+                </Link>
+                
+                <Link
+                  to="/seller/gst"
+                  className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-center"
+                >
+                  <DocumentTextIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="font-medium text-gray-900">GST Settings</p>
+                  <p className="text-sm text-gray-500">Configure tax rates</p>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Stats & Info */}
+          <div className="space-y-6">
+            {/* Status Summary */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Status</h2>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">In Progress</span>
+                  <span className="font-semibold">{stats.inProgress}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Quoted</span>
+                  <span className="font-semibold">{stats.quoted}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Completed</span>
+                  <span className="font-semibold">{stats.completed}</span>
+                </div>
+                <div className="pt-3 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-900 font-medium">Total Revenue</span>
+                    <span className="text-xl font-bold text-green-600">
+                      ₹{stats.totalRevenue?.toLocaleString('en-IN') || 0}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-500">No recent projects</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Projects will appear here when customers submit them
-            </p>
-          </div>
-        )}
-      </div>
+            </div>
 
-      {/* Recent Quotations */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Recent Quotations</h2>
-          <Link to="/seller/quotations" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-            View All
-          </Link>
+            {/* Recent Activity - Static for now, can be dynamic later */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+              <div className="space-y-4">
+                {recentProjects.length > 0 && (
+                  <div className="flex items-start space-x-3">
+                    <div className="bg-green-100 p-2 rounded-full">
+                      <ClipboardDocumentListIcon className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-900">
+                        New project: "{recentProjects[0]?.title}"
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(recentProjects[0]?.createdAt).toLocaleDateString('en-IN')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-start space-x-3">
+                  <div className="bg-blue-100 p-2 rounded-full">
+                    <CubeIcon className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-900">Materials ready for quotation</p>
+                    <p className="text-xs text-gray-500">Browse materials to add</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Materials Summary */}
+            <Link
+              to="/seller/materials"
+              className="block bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow p-6 text-white hover:from-blue-600 hover:to-blue-700 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <CubeIcon className="h-8 w-8" />
+                <ArrowRightIcon className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-semibold mb-1">Material Database</h3>
+              <p className="text-sm text-blue-100">Manage your material inventory and pricing</p>
+            </Link>
+          </div>
         </div>
-
-        {dashboardData.recentQuotations.length > 0 ? (
-          <div className="space-y-4">
-            {dashboardData.recentQuotations.map((quote) => (
-              <div key={quote._id} className="flex items-center justify-between border-b pb-4 last:border-0">
-                <div>
-                  <h3 className="font-medium text-gray-900">{quote.quotationNumber}</h3>
-                  <p className="text-sm text-gray-600">{quote.projectTitle}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(quote.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="font-medium text-gray-900">
-                    {formatCurrency(quote.total)}
-                  </span>
-                  {getStatusBadge(quote.status)}
-                  <Link
-                    to={`/seller/quotations/${quote._id}`}
-                    className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                  >
-                    View
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-500">No quotations yet</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Create your first quotation from the project queue
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

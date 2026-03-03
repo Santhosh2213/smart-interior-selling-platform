@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { projectService } from '../../services/projectService';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeftIcon, 
-  PlusIcon, 
-  DocumentTextIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  PencilIcon,
-  TrashIcon,
-  ArrowPathIcon,
-  PhotoIcon 
+  getProjectById, 
+  submitProject,
+  addMeasurement,
+  uploadProjectImages 
+} from '../../services/projectService';
+import { 
+  ArrowLeftIcon,
+  PlusIcon,
+  PhotoIcon,
+  HomeIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import PhotoUploader from '../../components/customer/PhotoUploader';
-import ImageGallery from '../../components/customer/ImageGallery';
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
 
@@ -22,25 +21,27 @@ const ProjectDetails = () => {
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showAddMeasurement, setShowAddMeasurement] = useState(false);
-  const [showPhotoUploader, setShowPhotoUploader] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [showMeasurementForm, setShowMeasurementForm] = useState(false);
+  const [showImageUpload, setShowImageUpload] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [measurementData, setMeasurementData] = useState({
-    areaName: '',
     length: '',
     width: '',
     unit: 'feet'
   });
 
   useEffect(() => {
-    fetchProject();
+    loadProject();
   }, [id]);
 
-  const fetchProject = async () => {
+  const loadProject = async () => {
     try {
-      const response = await projectService.getProjectById(id);
+      const response = await getProjectById(id);
       setProject(response.data);
     } catch (error) {
-      toast.error('Failed to fetch project details');
+      console.error('Error loading project:', error);
+      toast.error('Failed to load project');
       navigate('/customer/dashboard');
     } finally {
       setLoading(false);
@@ -48,71 +49,89 @@ const ProjectDetails = () => {
   };
 
   const handleMeasurementChange = (e) => {
-    setMeasurementData({
-      ...measurementData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setMeasurementData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleAddMeasurement = async (e) => {
     e.preventDefault();
     
+    if (!measurementData.length || !measurementData.width) {
+      toast.error('Please enter both length and width');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const response = await projectService.addMeasurement(id, measurementData);
+      await addMeasurement(id, measurementData);
       toast.success('Measurement added successfully');
-      setShowAddMeasurement(false);
-      setMeasurementData({
-        areaName: '',
-        length: '',
-        width: '',
-        unit: project.measurementUnit || 'feet'
-      });
-      fetchProject(); // Refresh project data
+      setMeasurementData({ length: '', width: '', unit: 'feet' });
+      setShowMeasurementForm(false);
+      loadProject(); // Reload project data
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to add measurement');
+      console.error('Error adding measurement:', error);
+      toast.error('Failed to add measurement');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    setSelectedFiles(Array.from(e.target.files));
+  };
+
+  const handleUploadImages = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error('Please select at least one image');
+      return;
+    }
+
+    const formData = new FormData();
+    selectedFiles.forEach(file => {
+      formData.append('images', file);
+    });
+
+    setSubmitting(true);
+    try {
+      await uploadProjectImages(id, formData);
+      toast.success('Images uploaded successfully');
+      setSelectedFiles([]);
+      setShowImageUpload(false);
+      loadProject(); // Reload project data
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      toast.error('Failed to upload images');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleSubmitProject = async () => {
+    if (project.measurements.length === 0) {
+      toast.error('Please add at least one measurement');
+      return;
+    }
+
+    if (project.images.length === 0) {
+      toast.error('Please upload at least one photo');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      await projectService.submitProject(id);
-      toast.success('Project submitted for quotation');
-      fetchProject();
+      await submitProject(id);
+      toast.success('Project submitted for review!');
+      loadProject(); // Reload to update status
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to submit project');
+      console.error('Error submitting project:', error);
+      toast.error('Failed to submit project');
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const handleDeleteMeasurement = async (measurementId) => {
-    // Implement delete measurement functionality if needed
-    toast.error('Delete measurement functionality to be implemented');
-  };
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'quoted': return 'bg-blue-100 text-blue-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'completed': return 'bg-purple-100 text-purple-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const calculateTotalArea = () => {
-    if (!project?.measurements) return 0;
-    return project.measurements.reduce((sum, m) => {
-      return sum + (m.unit === 'feet' ? m.areaSqFt : m.areaSqM);
-    }, 0);
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader size="lg" />
-      </div>
-    );
+    return <Loader />;
   }
 
   if (!project) {
@@ -123,311 +142,236 @@ const ProjectDetails = () => {
     );
   }
 
+  const canEdit = project.status === 'draft';
+  const canSubmit = project.status === 'draft' && project.measurements.length > 0 && project.images.length > 0;
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <div className="flex items-center">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="flex items-center mb-6">
           <button
             onClick={() => navigate('/customer/dashboard')}
-            className="mr-4 text-gray-600 hover:text-primary-600"
+            className="mr-4 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{project.title}</h1>
-            <p className="text-gray-600">Created on {new Date(project.createdAt).toLocaleDateString()}</p>
+            <p className="text-gray-600">
+              Status: <span className="capitalize">{project.status}</span>
+            </p>
           </div>
         </div>
-        
-        <div className="flex items-center space-x-3">
-          <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(project.status)}`}>
-            {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-          </span>
-          
-          {project.status === 'draft' && (
-            <>
-              <Link
-                to={`/customer/projects/${id}/edit`}
-                className="btn-secondary flex items-center"
-              >
-                <PencilIcon className="h-4 w-4 mr-1" />
-                Edit
-              </Link>
-              <button
-                onClick={handleSubmitProject}
-                disabled={!project.measurements || project.measurements.length === 0}
-                className="btn-primary flex items-center disabled:opacity-50"
-                title={!project.measurements || project.measurements.length === 0 ? 'Add at least one measurement first' : ''}
-              >
-                <CheckCircleIcon className="h-4 w-4 mr-1" />
-                Submit for Quote
-              </button>
-            </>
-          )}
 
-          {project.status === 'quoted' && project.quotations && project.quotations.length > 0 && (
-            <Link
-              to={`/customer/quotation/${project.quotations[0]._id}`}
-              className="btn-primary flex items-center"
-            >
-              <DocumentTextIcon className="h-4 w-4 mr-1" />
-              View Quotation
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Project Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Description */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Description</h2>
-          <p className="text-gray-600">
-            {project.description || 'No description provided'}
-          </p>
-        </div>
-
-        {/* Stats */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Project Stats</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Measurement Unit:</span>
-              <span className="font-medium capitalize">{project.measurementUnit}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Project Info */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Description */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-2">Description</h2>
+              <p className="text-gray-600">{project.description || 'No description provided'}</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Areas Measured:</span>
-              <span className="font-medium">{project.measurements?.length || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Area:</span>
-              <span className="font-medium">
-                {calculateTotalArea().toFixed(2)} {project.measurementUnit === 'feet' ? 'sq ft' : 'sq m'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Photos:</span>
-              <span className="font-medium">{project.images?.length || 0}</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Measurements Section */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Area Measurements</h2>
-          {project.status === 'draft' && (
-            <button
-              onClick={() => setShowAddMeasurement(!showAddMeasurement)}
-              className="btn-primary flex items-center text-sm"
-            >
-              <PlusIcon className="h-4 w-4 mr-1" />
-              {showAddMeasurement ? 'Cancel' : 'Add Measurement'}
-            </button>
-          )}
-        </div>
-
-        {/* Add Measurement Form */}
-        {showAddMeasurement && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-medium mb-4">Add New Area</h3>
-            <form onSubmit={handleAddMeasurement} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Area Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="areaName"
-                    required
-                    value={measurementData.areaName}
-                    onChange={handleMeasurementChange}
-                    className="input-field"
-                    placeholder="e.g., Living Room, Kitchen Wall"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Unit
-                  </label>
-                  <select
-                    name="unit"
-                    value={measurementData.unit}
-                    onChange={handleMeasurementChange}
-                    className="input-field"
+            {/* Measurements */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Measurements</h2>
+                {canEdit && (
+                  <button
+                    onClick={() => setShowMeasurementForm(!showMeasurementForm)}
+                    className="text-blue-600 hover:text-blue-700 flex items-center"
                   >
-                    <option value="feet">Feet (ft)</option>
-                    <option value="meter">Meters (m)</option>
-                  </select>
-                </div>
+                    <PlusIcon className="h-4 w-4 mr-1" />
+                    Add Measurement
+                  </button>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Length <span className="text-red-500">*</span>
-                  </label>
+              {showMeasurementForm && (
+                <form onSubmit={handleAddMeasurement} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Length</label>
+                      <input
+                        type="number"
+                        name="length"
+                        value={measurementData.length}
+                        onChange={handleMeasurementChange}
+                        className="w-full px-3 py-2 border rounded"
+                        step="0.01"
+                        min="0"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Width</label>
+                      <input
+                        type="number"
+                        name="width"
+                        value={measurementData.width}
+                        onChange={handleMeasurementChange}
+                        className="w-full px-3 py-2 border rounded"
+                        step="0.01"
+                        min="0"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowMeasurementForm(false)}
+                      className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      {submitting ? 'Adding...' : 'Add'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {project.measurements && project.measurements.length > 0 ? (
+                <div className="space-y-3">
+                  {project.measurements.map((m, index) => (
+                    <div key={index} className="flex items-center justify-between border-b pb-2">
+                      <div>
+                        <p className="font-medium">Area {index + 1}</p>
+                        <p className="text-sm text-gray-600">
+                          {m.length} × {m.width} {project.measurementUnit}
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium">
+                        {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No measurements added</p>
+              )}
+            </div>
+
+            {/* Photos */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Photos</h2>
+                {canEdit && (
+                  <button
+                    onClick={() => setShowImageUpload(!showImageUpload)}
+                    className="text-blue-600 hover:text-blue-700 flex items-center"
+                  >
+                    <PhotoIcon className="h-4 w-4 mr-1" />
+                    Upload Photos
+                  </button>
+                )}
+              </div>
+
+              {showImageUpload && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <input
-                    type="number"
-                    name="length"
-                    required
-                    step="0.01"
-                    min="0.01"
-                    value={measurementData.length}
-                    onChange={handleMeasurementChange}
-                    className="input-field"
-                    placeholder="0.00"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="mb-4"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Width <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    name="width"
-                    required
-                    step="0.01"
-                    min="0.01"
-                    value={measurementData.width}
-                    onChange={handleMeasurementChange}
-                    className="input-field"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddMeasurement(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                >
-                  Add Area
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Measurements List */}
-        {project.measurements && project.measurements.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Area Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dimensions
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Area (sq ft)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Area (sq m)
-                  </th>
-                  {project.status === 'draft' && (
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                  {selectedFiles.length > 0 && (
+                    <div className="flex justify-end space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowImageUpload(false)}
+                        className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleUploadImages}
+                        disabled={submitting}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        {submitting ? 'Uploading...' : `Upload ${selectedFiles.length} Images`}
+                      </button>
+                    </div>
                   )}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {project.measurements.map((measurement) => (
-                  <tr key={measurement._id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {measurement.areaName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {measurement.length} × {measurement.width} {measurement.unit}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {measurement.areaSqFt?.toFixed(2)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {measurement.areaSqM?.toFixed(2)}
-                      </div>
-                    </td>
-                    {project.status === 'draft' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleDeleteMeasurement(measurement._id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">No measurements added yet</p>
-            {project.status === 'draft' && (
-              <button
-                onClick={() => setShowAddMeasurement(true)}
-                className="btn-primary inline-flex items-center"
-              >
-                <PlusIcon className="h-4 w-4 mr-1" />
-                Add Your First Measurement
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+                </div>
+              )}
 
-      {/* Photos Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Photos</h2>
-          {project.status === 'draft' && (
-            <button
-              onClick={() => setShowPhotoUploader(!showPhotoUploader)}
-              className="btn-primary flex items-center text-sm"
-            >
-              <PhotoIcon className="h-4 w-4 mr-1" />
-              {showPhotoUploader ? 'Hide Uploader' : 'Upload Photos'}
-            </button>
-          )}
+              {project.images && project.images.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {project.images.map((image, index) => (
+                    <img
+                      key={index}
+                      src={image.imageUrl}
+                      alt={`Project ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No photos uploaded</p>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column - Actions */}
+          <div className="space-y-6">
+            {/* Submit Card */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Ready for Review?</h2>
+              
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center">
+                  <CheckCircleIcon className={`h-5 w-5 mr-2 ${project.measurements.length > 0 ? 'text-green-500' : 'text-gray-300'}`} />
+                  <span className={project.measurements.length > 0 ? 'text-gray-700' : 'text-gray-400'}>
+                    Add measurements ({project.measurements.length})
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircleIcon className={`h-5 w-5 mr-2 ${project.images.length > 0 ? 'text-green-500' : 'text-gray-300'}`} />
+                  <span className={project.images.length > 0 ? 'text-gray-700' : 'text-gray-400'}>
+                    Upload photos ({project.images.length})
+                  </span>
+                </div>
+              </div>
+
+              {project.status === 'draft' ? (
+                <button
+                  onClick={handleSubmitProject}
+                  disabled={!canSubmit || submitting}
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Submitting...' : 'Submit for Review'}
+                </button>
+              ) : (
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    This project has been submitted and is awaiting review.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Project Info Card */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Project Info</h2>
+              <div className="space-y-2 text-sm">
+                <p><span className="text-gray-600">Created:</span> {new Date(project.createdAt).toLocaleDateString()}</p>
+                {project.submittedAt && (
+                  <p><span className="text-gray-600">Submitted:</span> {new Date(project.submittedAt).toLocaleDateString()}</p>
+                )}
+                <p><span className="text-gray-600">Measurement Unit:</span> {project.measurementUnit}</p>
+                <p><span className="text-gray-600">Total Area:</span> {project.totalArea?.toFixed(2)} sq.{project.measurementUnit}</p>
+              </div>
+            </div>
+          </div>
         </div>
-
-        {/* Photo Uploader */}
-        {showPhotoUploader && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <PhotoUploader 
-              projectId={id} 
-              onUploadComplete={() => {
-                setShowPhotoUploader(false);
-                fetchProject(); // Refresh project data
-              }}
-            />
-          </div>
-        )}
-
-        {/* Image Gallery */}
-        <ImageGallery projectId={id} onImageChange={fetchProject} />
       </div>
     </div>
   );

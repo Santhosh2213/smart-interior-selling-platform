@@ -44,13 +44,13 @@ export const getProject = async (projectId) => {
   }
 };
 
-// Get project details with design suggestion
-export const getProjectDetails = async (projectId) => {
+// Get project design for review
+export const getProjectDesign = async (projectId) => {
   try {
-    const response = await api.get(`/projects/${projectId}/with-design`);
+    const response = await api.get(`/projects/${projectId}/design`);
     return response.data.data;
   } catch (error) {
-    console.error('Error fetching project details:', error);
+    console.error('Error fetching project design:', error);
     throw error;
   }
 };
@@ -103,13 +103,24 @@ export const submitProject = async (projectId) => {
   }
 };
 
-// Respond to design suggestion
+// Respond to design (approve/reject)
 export const respondToDesign = async (projectId, responseData) => {
   try {
     const response = await api.post(`/projects/${projectId}/design-response`, responseData);
     return response.data;
   } catch (error) {
     console.error('Error responding to design:', error);
+    throw error;
+  }
+};
+
+// Request design changes
+export const requestDesignChanges = async (projectId, changeData) => {
+  try {
+    const response = await api.post(`/projects/${projectId}/design-changes`, changeData);
+    return response.data;
+  } catch (error) {
+    console.error('Error requesting design changes:', error);
     throw error;
   }
 };
@@ -162,7 +173,7 @@ export const requestQuotationChanges = async (quotationId, changeData) => {
 export const getNotifications = async () => {
   try {
     const response = await api.get('/notifications');
-    return response.data.data;
+    return response.data;
   } catch (error) {
     console.error('Error fetching notifications:', error);
     throw error;
@@ -180,18 +191,18 @@ export const markNotificationAsRead = async (notificationId) => {
   }
 };
 
-// Export all functions as a service object
-const customerService = {
+export default {
   getCustomerProfile,
   updateCustomerProfile,
   getCustomerProjects,
   getProject,
-  getProjectDetails,
+  getProjectDesign,
   createProject,
   uploadProjectImages,
   addMeasurement,
   submitProject,
   respondToDesign,
+  requestDesignChanges,
   getCustomerQuotations,
   getQuotation,
   acceptQuotation,
@@ -199,5 +210,3 @@ const customerService = {
   getNotifications,
   markNotificationAsRead
 };
-
-export default customerService;

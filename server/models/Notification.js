@@ -4,6 +4,22 @@ const notificationSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    required: true,
+    index: true
+  },
+  type: {
+    type: String,
+    enum: [
+      'DESIGN_SUBMITTED',
+      'DESIGN_APPROVED',
+      'DESIGN_REJECTED',
+      'DESIGN_CHANGES_REQUESTED',
+      'DESIGN_UPDATED',
+      'NEW_MESSAGE',
+      'QUOTATION_CREATED',
+      'QUOTATION_ACCEPTED',
+      'PROJECT_UPDATE'
+    ],
     required: true
   },
   title: {
@@ -14,27 +30,31 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  type: {
+  relatedId: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'onModel'
+  },
+  onModel: {
     type: String,
-    enum: ['info', 'success', 'warning', 'error'],
-    default: 'info'
+    enum: ['Project', 'DesignSuggestion', 'Quotation', 'Chat']
   },
-  link: {
-    type: String
-  },
-  read: {
+  actionUrl: String,
+  actionText: String,
+  isRead: {
     type: Boolean,
     default: false
   },
   readAt: Date,
-  metadata: {
-    type: mongoose.Schema.Types.Mixed
+  data: mongoose.Schema.Types.Mixed,
+  expiresAt: {
+    type: Date,
+    default: () => new Date(+new Date() + 30*24*60*60*1000) // 30 days
   }
 }, {
   timestamps: true
 });
 
-// Index for faster queries
-notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+// Index for cleanup
+notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

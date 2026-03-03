@@ -6,7 +6,7 @@ import {
   CalendarIcon,
   ArrowRightIcon 
 } from '@heroicons/react/24/outline';
-import { projectService } from '../../services/projectService';
+import { getSellerProjectQueue } from '../../services/projectService'; // Fix import
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
 
@@ -27,19 +27,21 @@ const ProjectQueue = () => {
 
   const fetchProjects = async () => {
     try {
-      const response = await projectService.getSellerProjectQueue();
-      setProjects(response.data || []);
+      const response = await getSellerProjectQueue(); // Fix function call
+      const projectsData = response.data || [];
+      setProjects(projectsData);
       
       // Calculate stats
       const stats = {
-        total: response.data.length,
-        pending: response.data.filter(p => p.status === 'pending').length,
-        inProgress: response.data.filter(p => p.status === 'quoting').length,
-        quoted: response.data.filter(p => p.status === 'quoted').length,
-        completed: response.data.filter(p => p.status === 'completed').length
+        total: projectsData.length,
+        pending: projectsData.filter(p => p.status === 'pending' || p.status === 'PENDING_DESIGN').length,
+        inProgress: projectsData.filter(p => p.status === 'quoting' || p.status === 'DESIGN_IN_PROGRESS').length,
+        quoted: projectsData.filter(p => p.status === 'quoted' || p.status === 'DESIGN_APPROVED').length,
+        completed: projectsData.filter(p => p.status === 'completed').length
       };
       setStats(stats);
     } catch (error) {
+      console.error('Error loading projects:', error);
       toast.error('Failed to load projects');
     } finally {
       setLoading(false);
@@ -48,12 +50,27 @@ const ProjectQueue = () => {
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'quoting': return 'bg-blue-100 text-blue-800';
-      case 'quoted': return 'bg-purple-100 text-purple-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending':
+      case 'PENDING_DESIGN':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'quoting':
+      case 'DESIGN_IN_PROGRESS':
+        return 'bg-blue-100 text-blue-800';
+      case 'quoted':
+      case 'DESIGN_APPROVED':
+        return 'bg-purple-100 text-purple-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getCustomerName = (project) => {
+    if (project.customerName) return project.customerName;
+    if (project.customerId?.userId?.name) return project.customerId.userId.name;
+    if (project.customerId?.name) return project.customerId.name;
+    return 'Unknown Customer';
   };
 
   if (loading) {
@@ -112,29 +129,29 @@ const ProjectQueue = () => {
                     {project.title}
                   </h3>
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status)}`}>
-                    {project.status}
+                    {project.status === 'PENDING_DESIGN' ? 'Pending Design' : project.status}
                   </span>
                 </div>
 
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center text-sm text-gray-600">
                     <UserIcon className="h-4 w-4 mr-2" />
-                    {project.customerId?.userId?.name || 'Unknown Customer'}
+                    {getCustomerName(project)}
                   </div>
                   <div className="flex items-center text-sm text-gray-600">
                     <CalendarIcon className="h-4 w-4 mr-2" />
-                    {new Date(project.createdAt).toLocaleDateString()}
+                    {new Date(project.createdAt || project.submittedAt).toLocaleDateString()}
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                  <span>{project.measurements?.length || 0} areas</span>
-                  <span>{project.images?.length || 0} photos</span>
+                  <span>{project.measurements?.length || project.roomCount || 0} areas</span>
+                  <span>{project.images?.length || project.photoCount || 0} photos</span>
                 </div>
 
                 <Link
-                  to={`/seller/create-quotation/${project._id}`}
-                  className="btn-primary w-full flex items-center justify-center"
+                  to={`/seller/quotations/create/${project._id}`} // Fixed: matches route in AppRoutes.jsx
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
                 >
                   Create Quotation
                   <ArrowRightIcon className="h-4 w-4 ml-2" />

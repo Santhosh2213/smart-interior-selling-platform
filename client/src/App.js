@@ -2,10 +2,10 @@ import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext'; // Import SocketProvider
 import AppRoutes from './routes/AppRoutes';
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';
-import { SocketProvider } from './context/SocketContext';
 
 function App() {
   return (
