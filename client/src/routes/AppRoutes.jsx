@@ -28,6 +28,7 @@ import MaterialDatabase from '../pages/seller/MaterialDatabase';
 import GSTSettings from '../pages/seller/GSTSettings';
 import OrderManagement from '../pages/seller/OrderManagement';
 import Reports from '../pages/seller/Reports';
+import ProjectDetailsView from '../pages/seller/ProjectDetailsView';
 
 // Designer Pages
 import DesignerDashboard from '../pages/designer/Dashboard';
@@ -88,6 +89,7 @@ const AppRoutes = () => {
         <Route path="gst" element={<SellerRoute><GSTSettings /></SellerRoute>} />
         <Route path="orders" element={<SellerRoute><OrderManagement /></SellerRoute>} />
         <Route path="reports" element={<SellerRoute><Reports /></SellerRoute>} />
+        <Route path="project/:id" element={<SellerRoute><ProjectDetailsView /></SellerRoute>} />
       </Route>
 
       {/* Designer Routes */}

@@ -98,7 +98,7 @@ exports.getSellerProjectQueue = async (req, res) => {
     const projects = await Project.find({ 
       $or: [
         { assignedSeller: seller._id },
-        { status: 'pending', assignedSeller: null }
+        { assignedSeller: null, status: { $in: ['pending', 'PENDING_DESIGN', 'quoted', 'DESIGN_APPROVED'] } }
       ]
     })
       .populate({
@@ -110,6 +110,7 @@ exports.getSellerProjectQueue = async (req, res) => {
       })
       .populate('measurements')
       .populate('images')
+      .populate('quotations')
       .sort('-createdAt');
 
     res.status(200).json({
@@ -166,9 +167,17 @@ exports.getProjectById = async (req, res) => {
     } 
     else if (req.user.role === 'seller') {
       const seller = await Seller.findOne({ userId: req.user.id });
+      // Allow sellers to view projects that are:
+      // 1. Assigned to them
+      // 2. Pending (no seller assigned)
+      // 3. Quoted (so they can view quoted projects)
+      // 4. Design approved
       isAuthorized = seller && (
         project.assignedSeller?.toString() === seller._id.toString() || 
-        project.status === 'pending'
+        project.status === 'pending' ||
+        project.status === 'PENDING_DESIGN' ||
+        project.status === 'quoted' ||        // ADD THIS
+        project.status === 'DESIGN_APPROVED'   // ADD THIS
       );
     }
     else if (req.user.role === 'designer') {
@@ -326,14 +335,6 @@ exports.addMeasurement = async (req, res) => {
       });
     }
 
-    // Only allow adding measurements if project is in draft status
-    if (project.status !== 'draft') {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot add measurements after project submission'
-      });
-    }
-
     // Create measurement
     const measurement = await Measurement.create({
       projectId: project._id,
@@ -357,10 +358,10 @@ exports.addMeasurement = async (req, res) => {
       data: measurement
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Add measurement error:', error);
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: error.message || 'Server Error'
     });
   }
 };
@@ -571,11 +572,11 @@ exports.getProjectDesign = async (req, res) => {
       });
     }
 
-    // Get the latest design suggestion
+    // Get the latest design suggestion (highest version)
     const design = await DesignSuggestion.findOne({ 
-      projectId: project._id,
-      status: { $in: ['SUBMITTED', 'PENDING_CUSTOMER', 'CHANGES_REQUESTED'] }
+      projectId: project._id
     })
+    .sort('-version') // Sort by version descending to get the latest
     .populate('recommendations.materialId')
     .populate('designerId', 'name')
     .lean();
@@ -596,10 +597,7 @@ exports.getProjectDesign = async (req, res) => {
       success: true,
       data: {
         project,
-        design: {
-          ...design,
-          customerViewedAt: new Date()
-        }
+        design
       }
     });
 

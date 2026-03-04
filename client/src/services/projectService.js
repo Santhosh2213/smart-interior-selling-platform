@@ -136,6 +136,7 @@ export const uploadProjectImages = async (projectId, formData) => {
   }
 };
 
+// Also export as default object for backward compatibility
 const projectService = {
   getProjectById,
   getSellerProjectQueue,

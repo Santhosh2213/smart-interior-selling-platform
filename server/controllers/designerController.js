@@ -300,7 +300,7 @@ const createDesignSuggestion = async (req, res) => {
     
     const newVersion = latestVersion ? latestVersion.version + 1 : 1;
     
-    // Handle revision
+    // If this is a revision, find the previous version that had the change request
     let previousVersion = null;
     if (isRevision && changeRequestId) {
       previousVersion = await DesignSuggestion.findOne({ 
@@ -314,18 +314,24 @@ const createDesignSuggestion = async (req, res) => {
       projectId,
       designerId: designer._id,
       version: newVersion,
-      recommendations,
-      designNotes,
-      suggestedTheme,
-      colorScheme,
-      estimatedTimeline,
+      recommendations: recommendations || [],
+      designNotes: designNotes || '',
+      suggestedTheme: suggestedTheme || '',
+      colorScheme: colorScheme || { primary: '#3B82F6', secondary: '#10B981', accent: '#F59E0B' },
+      estimatedTimeline: estimatedTimeline || {
+        designDays: 3,
+        materialProcurementDays: 5,
+        installationDays: 7
+      },
       designImages: designImages || [],
       status: status === 'SUBMITTED' ? 'SUBMITTED' : 'DRAFT',
       customerResponse: 'PENDING',
       previousVersionId: previousVersion?._id
     });
     
-    // Update project
+    console.log('Design suggestion created version:', newVersion);
+    
+    // Update project with the new design suggestion ID
     project.designSuggestionId = suggestion._id;
     project.currentDesignVersion = newVersion;
     project.designStatus = status === 'SUBMITTED' ? 'DESIGN_SUBMITTED' : 'DESIGN_IN_PROGRESS';
@@ -347,13 +353,13 @@ const createDesignSuggestion = async (req, res) => {
       if (project.customerId && project.customerId.userId) {
         await createNotification(
           project.customerId.userId._id,
-          'DESIGN_SUBMITTED',
-          'New Design Ready for Review',
-          `Designer has created a design for your project: ${project.title}`,
+          'DESIGN_UPDATED', // Use DESIGN_UPDATED instead of DESIGN_SUBMITTED for revisions
+          'Design Updated',
+          `Designer has updated the design for your project: ${project.title} (Version ${newVersion})`,
           project._id,
           'Project',
           `/customer/design-review/${project._id}`,
-          { designVersion: newVersion }
+          { designVersion: newVersion, isUpdate: true }
         );
       }
       
@@ -363,9 +369,9 @@ const createDesignSuggestion = async (req, res) => {
         if (seller && seller.userId) {
           await createNotification(
             seller.userId._id,
-            'DESIGN_SUBMITTED',
-            'New Design Submitted',
-            `Design for project ${project.title} has been submitted`,
+            'DESIGN_UPDATED',
+            'Design Updated',
+            `Design for project ${project.title} has been updated to version ${newVersion}`,
             project._id,
             'Project',
             `/seller/project/${project._id}`,
@@ -383,7 +389,7 @@ const createDesignSuggestion = async (req, res) => {
       success: true, 
       data: suggestion,
       message: status === 'SUBMITTED' 
-        ? 'Design suggestion submitted successfully. Customer has been notified.' 
+        ? (isRevision ? 'Design updated successfully. Customer has been notified.' : 'Design suggestion submitted successfully. Customer has been notified.')
         : 'Design suggestion saved as draft'
     });
     

@@ -8,38 +8,55 @@ const measurementSchema = new mongoose.Schema({
   },
   areaName: {
     type: String,
-    required: true
+    required: [true, 'Area name is required'],
+    trim: true
   },
   length: {
     type: Number,
-    required: true
+    required: [true, 'Length is required'],
+    min: [0.01, 'Length must be greater than 0']
   },
   width: {
     type: Number,
-    required: true
+    required: [true, 'Width is required'],
+    min: [0.01, 'Width must be greater than 0']
   },
   unit: {
     type: String,
     enum: ['meter', 'feet'],
-    required: true
+    required: true,
+    default: 'feet'
   },
-  areaSqFt: Number,
-  areaSqM: Number,
-  notes: String
+  areaSqFt: {
+    type: Number,
+    default: 0
+  },
+  areaSqM: {
+    type: Number,
+    default: 0
+  },
+  notes: {
+    type: String,
+    trim: true
+  }
 }, {
   timestamps: true
 });
 
 // Calculate area before saving
 measurementSchema.pre('save', function(next) {
-  if (this.unit === 'feet') {
-    this.areaSqFt = this.length * this.width;
-    this.areaSqM = this.areaSqFt * 0.092903;
-  } else {
-    this.areaSqM = this.length * this.width;
-    this.areaSqFt = this.areaSqM * 10.7639;
+  try {
+    if (this.unit === 'feet') {
+      this.areaSqFt = this.length * this.width;
+      this.areaSqM = this.areaSqFt * 0.092903;
+    } else {
+      this.areaSqM = this.length * this.width;
+      this.areaSqFt = this.areaSqM * 10.7639;
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 });
 
 module.exports = mongoose.model('Measurement', measurementSchema);

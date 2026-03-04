@@ -26,19 +26,27 @@ const ProjectDetails = () => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [measurementData, setMeasurementData] = useState({
+    areaName: '',
     length: '',
     width: '',
     unit: 'feet'
   });
 
   useEffect(() => {
-    loadProject();
+    if (id) {
+      loadProject();
+    } else {
+      toast.error('No project ID provided');
+      navigate('/customer/dashboard');
+    }
   }, [id]);
 
   const loadProject = async () => {
     try {
+      setLoading(true);
       const response = await getProjectById(id);
-      setProject(response.data);
+      // Safely access data with optional chaining
+      setProject(response?.data || null);
     } catch (error) {
       console.error('Error loading project:', error);
       toast.error('Failed to load project');
@@ -56,28 +64,46 @@ const ProjectDetails = () => {
   const handleAddMeasurement = async (e) => {
     e.preventDefault();
     
-    if (!measurementData.length || !measurementData.width) {
-      toast.error('Please enter both length and width');
+    // Validate inputs with safe checks
+    if (!measurementData.areaName?.trim()) {
+      toast.error('Please enter an area name');
+      return;
+    }
+    
+    if (!measurementData.length || parseFloat(measurementData.length) <= 0) {
+      toast.error('Please enter a valid length');
+      return;
+    }
+    
+    if (!measurementData.width || parseFloat(measurementData.width) <= 0) {
+      toast.error('Please enter a valid width');
       return;
     }
 
     setSubmitting(true);
     try {
-      await addMeasurement(id, measurementData);
+      const measurementPayload = {
+        areaName: measurementData.areaName.trim(),
+        length: parseFloat(measurementData.length),
+        width: parseFloat(measurementData.width),
+        unit: measurementData.unit
+      };
+      
+      await addMeasurement(id, measurementPayload);
       toast.success('Measurement added successfully');
-      setMeasurementData({ length: '', width: '', unit: 'feet' });
+      setMeasurementData({ areaName: '', length: '', width: '', unit: 'feet' });
       setShowMeasurementForm(false);
       loadProject(); // Reload project data
     } catch (error) {
       console.error('Error adding measurement:', error);
-      toast.error('Failed to add measurement');
+      toast.error(error.response?.data?.error || 'Failed to add measurement');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleFileChange = (e) => {
-    setSelectedFiles(Array.from(e.target.files));
+    setSelectedFiles(Array.from(e.target.files || []));
   };
 
   const handleUploadImages = async () => {
@@ -107,43 +133,66 @@ const ProjectDetails = () => {
   };
 
   const handleSubmitProject = async () => {
-    if (project.measurements.length === 0) {
+    // Safe checks with optional chaining
+    const measurements = project?.measurements || [];
+    const images = project?.images || [];
+    
+    console.log('Submitting project - Measurements:', measurements.length);
+    console.log('Submitting project - Images:', images.length);
+    
+    if (measurements.length === 0) {
       toast.error('Please add at least one measurement');
       return;
     }
-
-    if (project.images.length === 0) {
+  
+    if (images.length === 0) {
       toast.error('Please upload at least one photo');
       return;
     }
-
+  
     setSubmitting(true);
     try {
-      await submitProject(id);
+      console.log('Calling submitProject with ID:', id);
+      const response = await submitProject(id);
+      console.log('Submit response:', response);
+      
       toast.success('Project submitted for review!');
       loadProject(); // Reload to update status
     } catch (error) {
       console.error('Error submitting project:', error);
-      toast.error('Failed to submit project');
+      console.error('Error response:', error.response?.data);
+      toast.error(error.response?.data?.error || 'Failed to submit project');
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <Loader />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader />
+      </div>
+    );
   }
 
   if (!project) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">Project not found</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Project not found</p>
+          <button
+            onClick={() => navigate('/customer/dashboard')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
 
   const canEdit = project.status === 'draft';
-  const canSubmit = project.status === 'draft' && project.measurements.length > 0 && project.images.length > 0;
+  const canSubmit = canEdit && (project.measurements?.length || 0) > 0 && (project.images?.length || 0) > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,9 +206,9 @@ const ProjectDetails = () => {
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{project.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{project.title || 'Untitled Project'}</h1>
             <p className="text-gray-600">
-              Status: <span className="capitalize">{project.status}</span>
+              Status: <span className="capitalize">{project.status || 'draft'}</span>
             </p>
           </div>
         </div>
@@ -191,6 +240,18 @@ const ProjectDetails = () => {
               {showMeasurementForm && (
                 <form onSubmit={handleAddMeasurement} className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="col-span-2">
+                      <label className="block text-sm text-gray-600 mb-1">Area Name</label>
+                      <input
+                        type="text"
+                        name="areaName"
+                        value={measurementData.areaName}
+                        onChange={handleMeasurementChange}
+                        className="w-full px-3 py-2 border rounded"
+                        placeholder="e.g., Living Room, Kitchen"
+                        required
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">Length</label>
                       <input
@@ -240,15 +301,15 @@ const ProjectDetails = () => {
               {project.measurements && project.measurements.length > 0 ? (
                 <div className="space-y-3">
                   {project.measurements.map((m, index) => (
-                    <div key={index} className="flex items-center justify-between border-b pb-2">
+                    <div key={m._id || index} className="flex items-center justify-between border-b pb-2">
                       <div>
-                        <p className="font-medium">Area {index + 1}</p>
+                        <p className="font-medium">{m.areaName || `Area ${index + 1}`}</p>
                         <p className="text-sm text-gray-600">
-                          {m.length} × {m.width} {project.measurementUnit}
+                          {m.length} × {m.width} {project.measurementUnit || 'feet'}
                         </p>
                       </div>
                       <p className="text-sm font-medium">
-                        {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit}
+                        {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit || 'ft'}
                       </p>
                     </div>
                   ))}
@@ -307,7 +368,7 @@ const ProjectDetails = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {project.images.map((image, index) => (
                     <img
-                      key={index}
+                      key={image._id || index}
                       src={image.imageUrl}
                       alt={`Project ${index + 1}`}
                       className="w-full h-32 object-cover rounded-lg"
@@ -328,15 +389,15 @@ const ProjectDetails = () => {
               
               <div className="space-y-3 mb-4">
                 <div className="flex items-center">
-                  <CheckCircleIcon className={`h-5 w-5 mr-2 ${project.measurements.length > 0 ? 'text-green-500' : 'text-gray-300'}`} />
-                  <span className={project.measurements.length > 0 ? 'text-gray-700' : 'text-gray-400'}>
-                    Add measurements ({project.measurements.length})
+                  <CheckCircleIcon className={`h-5 w-5 mr-2 ${(project.measurements?.length || 0) > 0 ? 'text-green-500' : 'text-gray-300'}`} />
+                  <span className={(project.measurements?.length || 0) > 0 ? 'text-gray-700' : 'text-gray-400'}>
+                    Add measurements ({project.measurements?.length || 0})
                   </span>
                 </div>
                 <div className="flex items-center">
-                  <CheckCircleIcon className={`h-5 w-5 mr-2 ${project.images.length > 0 ? 'text-green-500' : 'text-gray-300'}`} />
-                  <span className={project.images.length > 0 ? 'text-gray-700' : 'text-gray-400'}>
-                    Upload photos ({project.images.length})
+                  <CheckCircleIcon className={`h-5 w-5 mr-2 ${(project.images?.length || 0) > 0 ? 'text-green-500' : 'text-gray-300'}`} />
+                  <span className={(project.images?.length || 0) > 0 ? 'text-gray-700' : 'text-gray-400'}>
+                    Upload photos ({project.images?.length || 0})
                   </span>
                 </div>
               </div>
@@ -362,12 +423,12 @@ const ProjectDetails = () => {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Project Info</h2>
               <div className="space-y-2 text-sm">
-                <p><span className="text-gray-600">Created:</span> {new Date(project.createdAt).toLocaleDateString()}</p>
+                <p><span className="text-gray-600">Created:</span> {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'N/A'}</p>
                 {project.submittedAt && (
                   <p><span className="text-gray-600">Submitted:</span> {new Date(project.submittedAt).toLocaleDateString()}</p>
                 )}
-                <p><span className="text-gray-600">Measurement Unit:</span> {project.measurementUnit}</p>
-                <p><span className="text-gray-600">Total Area:</span> {project.totalArea?.toFixed(2)} sq.{project.measurementUnit}</p>
+                <p><span className="text-gray-600">Measurement Unit:</span> {project.measurementUnit || 'feet'}</p>
+                <p><span className="text-gray-600">Total Area:</span> {(project.totalArea || 0).toFixed(2)} sq.{project.measurementUnit || 'ft'}</p>
               </div>
             </div>
           </div>

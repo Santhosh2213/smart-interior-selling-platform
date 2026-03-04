@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createProject } from '../../services/projectService';
-import { PhotoIcon } from '@heroicons/react/24/outline';
+import projectService from '../../services/projectService'; // Fixed import
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 const CreateProject = () => {
@@ -14,25 +14,21 @@ const CreateProject = () => {
   });
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.title.trim()) {
-      toast.error('Please enter a project title');
-      return;
-    }
-
     setLoading(true);
+
     try {
-      const response = await createProject(formData);
-      toast.success('Project created successfully');
+      const response = await projectService.createProject(formData); // Fixed
+      toast.success('Project created successfully!');
       navigate(`/customer/projects/${response.data._id}`);
     } catch (error) {
-      console.error('Error creating project:', error);
       toast.error(error.response?.data?.error || 'Failed to create project');
     } finally {
       setLoading(false);
@@ -40,110 +36,94 @@ const CreateProject = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Project</h1>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Project Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Project Title *
-              </label>
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="e.g., Bedroom Renovation, Kitchen Design"
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
+    <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <button
+        onClick={() => navigate('/customer/dashboard')}
+        className="flex items-center text-gray-600 hover:text-primary-600 mb-6"
+      >
+        <ArrowLeftIcon className="h-4 w-4 mr-1" />
+        Back to Dashboard
+      </button>
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                rows="4"
-                placeholder="Describe your project requirements..."
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Project</h1>
 
-            {/* Measurement Unit */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Preferred Measurement Unit
-              </label>
-              <div className="flex space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="measurementUnit"
-                    value="feet"
-                    checked={formData.measurementUnit === 'feet'}
-                    onChange={handleChange}
-                    className="mr-2"
-                  />
-                  Feet
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="measurementUnit"
-                    value="meter"
-                    checked={formData.measurementUnit === 'meter'}
-                    onChange={handleChange}
-                    className="mr-2"
-                  />
-                  Meters
-                </label>
-              </div>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+              Project Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              required
+              value={formData.title}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="e.g., Kitchen Renovation, Bedroom Flooring"
+            />
+          </div>
 
-            {/* Info Box */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex">
-                <PhotoIcon className="h-5 w-5 text-blue-600 mr-2" />
-                <div>
-                  <p className="text-sm text-blue-800">
-                    After creating the project, you'll be able to add:
-                  </p>
-                  <ul className="text-sm text-blue-700 mt-2 list-disc list-inside">
-                    <li>Room measurements with dimensions</li>
-                    <li>Photos of the space</li>
-                    <li>Mark areas on photos</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              rows="4"
+              value={formData.description}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="Describe your project requirements, preferences, etc."
+            />
+          </div>
 
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => navigate('/customer/dashboard')}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {loading ? 'Creating...' : 'Create Project'}
-              </button>
-            </div>
-          </form>
-        </div>
+          <div>
+            <label htmlFor="measurementUnit" className="block text-sm font-medium text-gray-700 mb-2">
+              Preferred Measurement Unit <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="measurementUnit"
+              name="measurementUnit"
+              required
+              value={formData.measurementUnit}
+              onChange={handleChange}
+              className="input-field"
+            >
+              <option value="feet">Feet (ft)</option>
+              <option value="meter">Meters (m)</option>
+            </select>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-blue-800 mb-2">Next Steps:</h3>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• Add area measurements (length × width)</li>
+              <li>• Upload wall/area photos</li>
+              <li>• Select materials from our database</li>
+              <li>• Submit for quotation</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <button
+              type="button"
+              onClick={() => navigate('/customer/dashboard')}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Project'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

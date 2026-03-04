@@ -20,7 +20,8 @@ import {
   CubeIcon,
   EnvelopeIcon,
   PhoneIcon,
-  UserIcon
+  UserIcon,
+  BellAlertIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -38,10 +39,19 @@ const DesignReview = () => {
   });
   const [selectedImage, setSelectedImage] = useState(null);
   const [error, setError] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     if (id) {
       loadDesignData();
+      
+      // Set up polling to check for updates every 30 seconds
+      const interval = setInterval(() => {
+        console.log('Checking for design updates...');
+        checkForUpdates();
+      }, 30000);
+      
+      return () => clearInterval(interval);
     } else {
       setError('No project ID provided');
       setLoading(false);
@@ -55,6 +65,19 @@ const DesignReview = () => {
       console.log('Loading design for project:', id);
       const data = await getProjectDesign(id);
       console.log('Design data received:', data);
+      
+      // Check if this is a new version
+      if (design && design.version !== data.design.version) {
+        toast.success(`Design updated to version ${data.design.version}!`);
+        setNotification({
+          title: 'Design Updated',
+          message: `The designer has updated the design to version ${data.design.version}`
+        });
+        
+        // Auto-hide notification after 5 seconds
+        setTimeout(() => setNotification(null), 5000);
+      }
+      
       setProject(data.project);
       setDesign(data.design);
     } catch (error) {
@@ -63,6 +86,20 @@ const DesignReview = () => {
       toast.error('Failed to load design');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkForUpdates = async () => {
+    try {
+      const data = await getProjectDesign(id);
+      
+      // If there's a new version, reload the data
+      if (design && data.design.version > design.version) {
+        console.log(`New version detected: ${data.design.version} (current: ${design.version})`);
+        loadDesignData();
+      }
+    } catch (error) {
+      console.error('Error checking for updates:', error);
     }
   };
 
@@ -116,6 +153,7 @@ const DesignReview = () => {
       await requestDesignChanges(id, changeRequest);
       toast.success('Change request sent to designer');
       setShowChangeForm(false);
+      setChangeRequest({ type: 'design_change', description: '' });
       loadDesignData(); // Reload to show updated status
     } catch (error) {
       console.error('Error requesting changes:', error);
@@ -132,10 +170,7 @@ const DesignReview = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader />
-          <p className="mt-4 text-gray-600">Loading design details...</p>
-        </div>
+        <Loader />
       </div>
     );
   }
@@ -179,6 +214,25 @@ const DesignReview = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Update Notification Banner */}
+      {notification && (
+        <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4 mx-4 rounded shadow">
+          <div className="flex items-center">
+            <BellAlertIcon className="h-5 w-5 mr-2" />
+            <div>
+              <p className="font-bold">{notification.title}</p>
+              <p>{notification.message}</p>
+            </div>
+            <button 
+              onClick={() => setNotification(null)}
+              className="ml-auto text-green-700 hover:text-green-900"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white shadow sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -192,7 +246,10 @@ const DesignReview = () => {
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{project?.title}</h1>
-              <p className="text-sm text-gray-500 mt-1">Design Review</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Design Review • Version {design.version}
+                {design.version > 1 && <span className="ml-2 text-green-600">(Updated)</span>}
+              </p>
             </div>
             <div className="flex items-center space-x-2">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -354,31 +411,14 @@ const DesignReview = () => {
 
           {/* Right Column - Actions & Summary */}
           <div className="space-y-6">
-            {/* Customer Info */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center">
-                <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Your Details
-              </h2>
-              <div className="space-y-2">
-                <p className="flex items-center">
-                  <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
-                  <span className="font-medium">{project?.customerName}</span>
+            {/* Version History Indicator */}
+            {design.version > 1 && (
+              <div className="bg-blue-50 rounded-lg p-4 text-center">
+                <p className="text-sm text-blue-800">
+                  Version {design.version} • Updated {new Date(design.updatedAt).toLocaleDateString()}
                 </p>
-                {project?.customerEmail && (
-                  <p className="flex items-center">
-                    <EnvelopeIcon className="h-4 w-4 text-gray-400 mr-2" />
-                    <span>{project.customerEmail}</span>
-                  </p>
-                )}
-                {project?.customerPhone && (
-                  <p className="flex items-center">
-                    <PhoneIcon className="h-4 w-4 text-gray-400 mr-2" />
-                    <span>{project.customerPhone}</span>
-                  </p>
-                )}
               </div>
-            </div>
+            )}
 
             {/* Cost Summary */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow p-6 text-white">
@@ -510,7 +550,7 @@ const DesignReview = () => {
               onClick={() => setSelectedImage(null)}
               className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75"
             >
-              <span className="text-2xl">&times;</span>
+              ✕
             </button>
           </div>
         </div>

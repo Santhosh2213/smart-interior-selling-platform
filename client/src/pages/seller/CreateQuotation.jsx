@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getProjectById } from '../../services/projectService';
 import { getAllMaterials } from '../../services/materialService';
 import { createQuotation } from '../../services/quotationService';
@@ -18,7 +18,8 @@ import {
   CurrencyRupeeIcon,
   DocumentTextIcon,
   CheckIcon,
-  XMarkIcon
+  XMarkIcon,
+  InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
@@ -26,6 +27,7 @@ import toast from 'react-hot-toast';
 const CreateQuotation = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [project, setProject] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [filteredMaterials, setFilteredMaterials] = useState([]);
@@ -35,6 +37,8 @@ const CreateQuotation = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showDesignInfo, setShowDesignInfo] = useState(false);
+  const [designSuggestion, setDesignSuggestion] = useState(null);
   const [formData, setFormData] = useState({
     laborCost: 0,
     transportCost: 0,
@@ -65,6 +69,36 @@ const CreateQuotation = () => {
       navigate('/seller/queue');
     }
   }, [projectId]);
+
+  // Check for pre-filled data from project details
+  useEffect(() => {
+    if (location.state?.designSuggestion && materials.length > 0) {
+      const design = location.state.designSuggestion;
+      setDesignSuggestion(design);
+      
+      if (design.recommendations && design.recommendations.length > 0) {
+        const preFilledItems = design.recommendations.map(rec => {
+          // Find the material in the materials list
+          const material = materials.find(m => 
+            m._id === (rec.materialId?._id || rec.materialId)
+          );
+          
+          return {
+            materialId: rec.materialId?._id || rec.materialId,
+            materialName: rec.materialId?.name || material?.name || 'Material',
+            quantity: rec.quantity || 1,
+            pricePerUnit: material?.pricePerUnit || rec.materialId?.pricePerUnit || 0,
+            unit: rec.unit || material?.unit || 'sqft',
+            gstRate: material?.gstRate || rec.materialId?.gstRate || 18
+          };
+        });
+        
+        setSelectedItems(preFilledItems);
+        toast.success(`Loaded ${preFilledItems.length} items from design suggestion`);
+        setShowDesignInfo(true);
+      }
+    }
+  }, [location.state, materials]);
 
   useEffect(() => {
     if (materials && materials.length > 0) {
@@ -100,13 +134,24 @@ const CreateQuotation = () => {
       console.log('Materials response:', materialsResponse);
       
       // Set project data
+      let projectData = null;
       if (projectResponse && projectResponse.data) {
-        setProject(projectResponse.data);
+        projectData = projectResponse.data;
       } else if (projectResponse) {
-        setProject(projectResponse);
+        projectData = projectResponse;
       }
       
-      // Set materials data - IMPORTANT: Check the structure
+      // Check if project is already quoted and has quotations
+      if (projectData && (projectData.status === 'quoted' || projectData.status === 'DESIGN_APPROVED') && 
+          projectData.quotations && projectData.quotations.length > 0) {
+        toast.success('This project already has a quotation. Redirecting to view it.');
+        navigate(`/seller/quotations/${projectData.quotations[0]._id}`);
+        return;
+      }
+      
+      setProject(projectData);
+      
+      // Set materials data
       let materialsArray = [];
       if (materialsResponse && materialsResponse.data) {
         materialsArray = materialsResponse.data;
@@ -120,7 +165,14 @@ const CreateQuotation = () => {
       
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error(error.response?.data?.error || 'Failed to load data');
+      
+      // Handle 403 error specifically
+      if (error.response?.status === 403) {
+        toast.error('You do not have permission to access this project');
+      } else {
+        toast.error(error.response?.data?.error || 'Failed to load data');
+      }
+      
       navigate('/seller/queue');
     } finally {
       setLoading(false);
@@ -166,7 +218,7 @@ const CreateQuotation = () => {
         materialId: material._id,
         materialName: material.name || 'Unknown',
         quantity: 1,
-        pricePerUnit: pricePerUnit,  // CRITICAL: This field must be included!
+        pricePerUnit: pricePerUnit,
         unit: material.unit || 'sqft',
         gstRate: material.gstRate || 18
       };
@@ -204,28 +256,19 @@ const CreateQuotation = () => {
   };
 
   const calculateItemTotals = (item) => {
-    // Ensure all values are numbers and log them for debugging
-    console.log('Calculating totals for item:', item);
-    
     const quantity = Number(item.quantity) || 0;
     const pricePerUnit = Number(item.pricePerUnit) || 0;
     const gstRate = Number(item.gstRate) || 0;
     
-    console.log('Parsed values:', { quantity, pricePerUnit, gstRate });
-    
-    // Calculate with proper numbers
     const subtotal = quantity * pricePerUnit;
     const gst = subtotal * (gstRate / 100);
     const total = subtotal + gst;
     
-    const result = {
+    return {
       subtotal: isNaN(subtotal) ? 0 : Number(subtotal.toFixed(2)),
       gst: isNaN(gst) ? 0 : Number(gst.toFixed(2)),
       total: isNaN(total) ? 0 : Number(total.toFixed(2))
     };
-    
-    console.log('Calculated totals:', result);
-    return result;
   };
 
   const calculateTotals = () => {
@@ -274,7 +317,6 @@ const CreateQuotation = () => {
     for (let i = 0; i < selectedItems.length; i++) {
       const item = selectedItems[i];
       
-      // Check if pricePerUnit exists
       if (item.pricePerUnit === undefined || item.pricePerUnit === null) {
         console.error(`Item ${i} missing pricePerUnit:`, item);
         toast.error(`${item.materialName || 'Item'} is missing price information`);
@@ -308,40 +350,25 @@ const CreateQuotation = () => {
     try {
       const totals = calculateTotals();
       
-      // DEEP DEBUG - Log each item in detail
-      console.log('========== DEBUG START ==========');
-      console.log('Selected Items Count:', selectedItems.length);
-      
-      selectedItems.forEach((item, index) => {
-        console.log(`\n--- Item ${index} ---`);
-        console.log('Full item object:', JSON.stringify(item, null, 2));
-        console.log('pricePerUnit exists?', item.hasOwnProperty('pricePerUnit'));
-        console.log('pricePerUnit value:', item.pricePerUnit);
-        console.log('pricePerUnit type:', typeof item.pricePerUnit);
-      });
-      
-      // Prepare items with explicit field mapping
       const items = selectedItems.map(item => {
-        // FORCE each field to be explicitly set
-        const itemData = {
+        const quantity = Number(item.quantity) || 0;
+        const pricePerUnit = Number(item.pricePerUnit) || 0;
+        const gstRate = Number(item.gstRate) || 0;
+        const subtotal = quantity * pricePerUnit;
+        const gstAmount = subtotal * (gstRate / 100);
+        const total = subtotal + gstAmount;
+        
+        return {
           materialId: String(item.materialId || ''),
           materialName: String(item.materialName || 'Unknown'),
-          quantity: Number(item.quantity) || 0,
+          quantity: quantity,
           unit: String(item.unit || 'sqft'),
-          pricePerUnit: Number(item.pricePerUnit) || 0,  // Explicitly set
-          subtotal: 0,
-          gstRate: Number(item.gstRate) || 0,
-          gstAmount: 0,
-          total: 0
+          pricePerUnit: pricePerUnit,
+          subtotal: Number(subtotal.toFixed(2)),
+          gstRate: gstRate,
+          gstAmount: Number(gstAmount.toFixed(2)),
+          total: Number(total.toFixed(2))
         };
-        
-        // Calculate values
-        itemData.subtotal = Number((itemData.quantity * itemData.pricePerUnit).toFixed(2));
-        itemData.gstAmount = Number((itemData.subtotal * itemData.gstRate / 100).toFixed(2));
-        itemData.total = Number((itemData.subtotal + itemData.gstAmount).toFixed(2));
-        
-        console.log(`\nPrepared item ${selectedItems.indexOf(item)}:`, JSON.stringify(itemData, null, 2));
-        return itemData;
       });
   
       const quotationData = {
@@ -360,33 +387,35 @@ const CreateQuotation = () => {
         status: 'draft'
       };
   
-      console.log('\n========== FINAL QUOTATION DATA ==========');
-      console.log(JSON.stringify(quotationData, null, 2));
-      console.log('==========================================\n');
+      console.log('Submitting quotation:', JSON.stringify(quotationData, null, 2));
       
       const response = await createQuotation(quotationData);
-      console.log('SUCCESS! Quotation created:', response);
+      console.log('Quotation created:', response);
       toast.success('Quotation created successfully!');
       navigate('/seller/quotations');
       
     } catch (error) {
-      console.error('========== ERROR DETAILS ==========');
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
+      console.error('Error creating quotation:', error);
       if (error.response) {
-        console.error('Server response status:', error.response.status);
-        console.error('Server response data:', JSON.stringify(error.response.data, null, 2));
+        console.error('Server response:', error.response.data);
+        toast.error(error.response.data?.error || 'Failed to create quotation');
+      } else {
+        toast.error(error.message || 'Failed to create quotation');
       }
-      console.error('====================================');
-      toast.error(error.response?.data?.error || error.message || 'Failed to create quotation');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleClearDesignItems = () => {
+    setSelectedItems([]);
+    setShowDesignInfo(false);
+    toast.success('Cleared design suggestion items');
+  };
+
   const totals = calculateTotals();
 
-  if (loading) {
+  if (loading) { 
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader />
@@ -426,6 +455,26 @@ const CreateQuotation = () => {
           <p className="text-sm text-gray-500 mt-1">Project: {project.title}</p>
         </div>
       </div>
+
+      {/* Design Info Banner */}
+      {showDesignInfo && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg flex items-center justify-between">
+            <div className="flex items-center">
+              <InformationCircleIcon className="h-5 w-5 text-blue-600 mr-2" />
+              <p className="text-sm text-blue-700">
+                Items from designer suggestion have been pre-filled. You can adjust quantities or add more items.
+              </p>
+            </div>
+            <button
+              onClick={handleClearDesignItems}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Clear Items
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -469,7 +518,7 @@ const CreateQuotation = () => {
                 <div className="space-y-3">
                   {project.measurements.map((m, index) => (
                     <div key={index} className="border-b last:border-0 pb-2 last:pb-0">
-                      <p className="font-medium">Area {index + 1}</p>
+                      <p className="font-medium">Area {index + 1}: {m.areaName || ''}</p>
                       <p className="text-sm text-gray-600">
                         {m.length} × {m.width} {project.measurementUnit || 'feet'}
                       </p>
@@ -588,13 +637,16 @@ const CreateQuotation = () => {
             </div>
 
             {/* Selected Items */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Selected Items</h2>
-              {selectedItems.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  Click on materials above to add them to quotation
-                </p>
-              ) : (
+            {selectedItems.length > 0 && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-semibold">Selected Items</h2>
+                  {showDesignInfo && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      From Design
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-4">
                   {selectedItems.map((item) => {
                     const { subtotal, gst, total } = calculateItemTotals(item);
@@ -610,7 +662,6 @@ const CreateQuotation = () => {
                           <button
                             onClick={() => handleRemoveItem(item.materialId)}
                             className="text-red-600 hover:text-red-700 p-1"
-                            title="Remove item"
                           >
                             <TrashIcon className="h-5 w-5" />
                           </button>
@@ -639,8 +690,8 @@ const CreateQuotation = () => {
                     );
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Additional Costs */}
             <div className="bg-white rounded-lg shadow p-6">
@@ -659,7 +710,7 @@ const CreateQuotation = () => {
                     name="laborCost"
                     value={formData.laborCost}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border rounded-lg"
                     min="0"
                     step="100"
                   />
@@ -674,7 +725,7 @@ const CreateQuotation = () => {
                     name="transportCost"
                     value={formData.transportCost}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border rounded-lg"
                     min="0"
                     step="100"
                   />
@@ -690,7 +741,7 @@ const CreateQuotation = () => {
                       name="discount"
                       value={formData.discount}
                       onChange={handleInputChange}
-                      className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-4 py-2 border rounded-l-lg"
                       min="0"
                       step={formData.discountType === 'percentage' ? '1' : '100'}
                     />
@@ -698,7 +749,7 @@ const CreateQuotation = () => {
                       name="discountType"
                       value={formData.discountType}
                       onChange={handleInputChange}
-                      className="w-24 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-24 px-4 py-2 border rounded-r-lg"
                     >
                       <option value="percentage">%</option>
                       <option value="fixed">₹</option>
@@ -715,7 +766,7 @@ const CreateQuotation = () => {
                     name="validUntil"
                     value={formData.validUntil}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border rounded-lg"
                   />
                 </div>
               </div>
@@ -729,32 +780,21 @@ const CreateQuotation = () => {
               </h2>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Terms & Conditions
-                  </label>
-                  <textarea
-                    name="terms"
-                    value={formData.terms}
-                    onChange={handleInputChange}
-                    rows="4"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Additional Notes
-                  </label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    rows="2"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Any special instructions..."
-                  />
-                </div>
+                <textarea
+                  name="terms"
+                  value={formData.terms}
+                  onChange={handleInputChange}
+                  rows="4"
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  rows="2"
+                  className="w-full px-4 py-2 border rounded-lg"
+                  placeholder="Any special instructions..."
+                />
               </div>
             </div>
 

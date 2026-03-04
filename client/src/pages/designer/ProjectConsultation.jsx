@@ -189,7 +189,7 @@ const ProjectConsultation = () => {
         status
       };
       
-      console.log('Submitting suggestion:', suggestionData);
+      console.log('Submitting suggestion data:', JSON.stringify(suggestionData, null, 2));
       
       const response = await createDesignSuggestion(suggestionData);
       console.log('Submission response:', response);
@@ -202,6 +202,7 @@ const ProjectConsultation = () => {
       }
     } catch (error) {
       console.error('Error submitting suggestion:', error);
+      console.error('Error response:', error.response?.data);
       toast.error(error.response?.data?.error || 'Failed to submit suggestion');
     } finally {
       setSubmitting(false);

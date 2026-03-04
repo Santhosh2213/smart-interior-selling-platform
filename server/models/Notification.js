@@ -18,7 +18,8 @@ const notificationSchema = new mongoose.Schema({
       'NEW_MESSAGE',
       'QUOTATION_CREATED',
       'QUOTATION_ACCEPTED',
-      'PROJECT_UPDATE'
+      'PROJECT_UPDATE',
+      'PROJECT_SUBMITTED'  // Add this missing enum value
     ],
     required: true
   },

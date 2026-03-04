@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'); // Add this line at the top!
 
 const recommendationSchema = new mongoose.Schema({
   areaId: {
@@ -18,7 +18,7 @@ const recommendationSchema = new mongoose.Schema({
   },
   unit: {
     type: String,
-    enum: ['sqft', 'sqm', 'pieces', 'boxes', 'liters', 'kg', 'meters', 'feet'],
+    enum: ['sqft', 'sqm', 'pieces', 'boxes', 'liters', 'kg', 'meters', 'feet', 'piece'],
     required: true
   },
   notes: {
