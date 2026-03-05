@@ -1,5 +1,4 @@
-import io from 'socket.io-client';
-import authService from './authService'; // Import default instead of named export
+import { io } from 'socket.io-client';
 
 class SocketService {
   constructor() {
@@ -7,16 +6,29 @@ class SocketService {
     this.listeners = new Map();
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
+    this.isConnected = false;
+  }
+
+  // Get token from localStorage
+  getToken() {
+    return localStorage.getItem('token');
   }
 
   // Connect to socket server
   connect() {
-    const token = getToken();
+    const token = this.getToken();
     
     if (!token) {
-      console.error('No token available for socket connection');
+      console.log('No token available for socket connection');
       return;
     }
+
+    if (this.socket && this.socket.connected) {
+      console.log('Socket already connected');
+      return;
+    }
+
+    console.log('Connecting to socket server...');
 
     this.socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
       auth: { token },
@@ -24,7 +36,8 @@ class SocketService {
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000
+      reconnectionDelayMax: 5000,
+      timeout: 10000
     });
 
     this.setupEventHandlers();
@@ -32,14 +45,19 @@ class SocketService {
 
   // Set up default event handlers
   setupEventHandlers() {
+    if (!this.socket) return;
+
     this.socket.on('connect', () => {
       console.log('✅ Socket connected');
+      this.isConnected = true;
       this.reconnectAttempts = 0;
       this.emit('reconnect-success');
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('❌ Socket disconnected:', reason);
+      this.isConnected = false;
+      
       if (reason === 'io server disconnect') {
         // Server disconnected, don't reconnect
         this.socket = null;
@@ -51,6 +69,7 @@ class SocketService {
       this.reconnectAttempts++;
       
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.log('Max reconnection attempts reached');
         this.emit('reconnect-failed');
       }
     });
@@ -73,6 +92,33 @@ class SocketService {
       this.emit('user-status-changed', { ...user, status: 'offline' });
     });
 
+    // Listen for notifications
+    this.socket.on('notification', (notification) => {
+      console.log('New notification received:', notification);
+      this.emit('notification', notification);
+    });
+
+    // Listen for private messages
+    this.socket.on('private-message', (message) => {
+      console.log('Private message received:', message);
+      this.emit('private-message', message);
+    });
+
+    // Listen for typing indicators
+    this.socket.on('typing', (data) => {
+      this.emit('typing', data);
+    });
+
+    // Listen for message sent confirmation
+    this.socket.on('message-sent', (message) => {
+      this.emit('message-sent', message);
+    });
+
+    // Listen for read receipts
+    this.socket.on('messages-read', (data) => {
+      this.emit('messages-read', data);
+    });
+
     // Listen for customer online (for designers/sellers)
     this.socket.on('customer-online', (customer) => {
       this.emit('customer-status-changed', { ...customer, status: 'online' });
@@ -81,69 +127,52 @@ class SocketService {
 
   // Join a project room
   joinProjectRoom(projectId) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('Joining project room:', projectId);
       this.socket.emit('join-project', { projectId });
+    } else {
+      console.warn('Cannot join project room: socket not connected');
     }
   }
 
   // Leave a project room
   leaveProjectRoom(projectId) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('Leaving project room:', projectId);
       this.socket.emit('leave-project', { projectId });
     }
   }
 
   // Send private message
   sendPrivateMessage(recipientId, content, projectId = null) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('Sending private message to:', recipientId);
       this.socket.emit('private-message', { recipientId, content, projectId });
+    } else {
+      console.warn('Cannot send message: socket not connected');
     }
   }
 
   // Send chat message (project-specific)
   sendChatMessage(projectId, content, recipients = []) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('Sending chat message to project:', projectId);
       this.socket.emit('chat-message', { projectId, content, recipients });
     }
   }
 
   // Send typing indicator
   sendTyping(recipientId, projectId, isTyping) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
       this.socket.emit('typing', { recipientId, projectId, isTyping });
     }
   }
 
   // Mark messages as read
   markMessagesAsRead(messageIds, senderId) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
       this.socket.emit('message-read', { messageIds, senderId });
     }
-  }
-
-  // Listen for private messages
-  onPrivateMessage(callback) {
-    this.on('private-message', callback);
-  }
-
-  // Listen for chat messages
-  onChatMessage(callback) {
-    this.on('chat-message', callback);
-  }
-
-  // Listen for typing indicators
-  onTyping(callback) {
-    this.on('typing', callback);
-  }
-
-  // Listen for message sent confirmation
-  onMessageSent(callback) {
-    this.on('message-sent', callback);
-  }
-
-  // Listen for read receipts
-  onMessagesRead(callback) {
-    this.on('messages-read', callback);
   }
 
   // Generic event listener
@@ -171,7 +200,7 @@ class SocketService {
 
   // Emit custom event
   emit(event, data) {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
     }
   }
@@ -179,19 +208,27 @@ class SocketService {
   // Disconnect socket
   disconnect() {
     if (this.socket) {
+      console.log('Disconnecting socket...');
       this.socket.disconnect();
       this.socket = null;
+      this.isConnected = false;
     }
   }
 
   // Check if connected
-  isConnected() {
+  isSocketConnected() {
     return this.socket && this.socket.connected;
   }
 
   // Get socket ID
   getSocketId() {
     return this.socket?.id;
+  }
+
+  // Reconnect manually
+  reconnect() {
+    this.disconnect();
+    this.connect();
   }
 }
 

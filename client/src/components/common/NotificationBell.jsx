@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BellIcon, CheckCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useSocket } from '../../context/SocketContext';
+import { useAuth } from '../../context/AuthContext';
 import { getNotifications, markNotificationAsRead } from '../../services/notificationService';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -12,52 +12,36 @@ const NotificationBell = () => {
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
-  const { on, unreadCount: socketUnreadCount, resetUnreadCount } = useSocket();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    fetchNotifications();
-    
-    // Listen for real-time notifications using the 'on' method
-    if (on) {
-      const handleNotification = (notification) => {
-        console.log('New notification received:', notification);
-        setNotifications(prev => [notification, ...prev]);
-        
-        // Show toast for new notification
-        toast.custom((t) => (
-          <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <CheckCircleIcon className="h-6 w-6 text-green-400" />
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                  <p className="mt-1 text-sm text-gray-500">{notification.message}</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  if (notification.actionUrl) {
-                    navigate(notification.actionUrl);
-                  }
-                }}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
-              >
-                View
-              </button>
-            </div>
-          </div>
-        ), { duration: 5000 });
-      };
-
-      on('notification', handleNotification);
+    if (isAuthenticated) {
+      fetchNotifications();
+      
+      // Set up polling every 30 seconds
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
     }
+  }, [isAuthenticated]);
 
-    // Click outside to close
+  const fetchNotifications = async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      setLoading(true);
+      const response = await getNotifications();
+      setNotifications(response.data || []);
+      setUnreadCount(response.unreadCount || 0);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      // Don't show toast for notification errors to avoid spam
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Click outside to close
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
@@ -66,27 +50,7 @@ const NotificationBell = () => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [on, navigate]);
-
-  // Update unread count from socket context
-  useEffect(() => {
-    if (socketUnreadCount !== undefined) {
-      setUnreadCount(socketUnreadCount);
-    }
-  }, [socketUnreadCount]);
-
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const response = await getNotifications();
-      setNotifications(response.data || []);
-      setUnreadCount(response.unreadCount || 0);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   const handleNotificationClick = async (notification) => {
     if (!notification.isRead) {
@@ -125,7 +89,7 @@ const NotificationBell = () => {
         return '📄';
       case 'QUOTATION_ACCEPTED':
         return '💰';
-      case 'PROJECT_UPDATE':
+      case 'PROJECT_SUBMITTED':
         return '📋';
       default:
         return '📢';
@@ -133,6 +97,7 @@ const NotificationBell = () => {
   };
 
   const formatTime = (date) => {
+    if (!date) return '';
     const now = new Date();
     const notifDate = new Date(date);
     const diffMs = now - notifDate;
@@ -147,20 +112,20 @@ const NotificationBell = () => {
     return notifDate.toLocaleDateString();
   };
 
+  if (!isAuthenticated) {
+    return null; // Don't show notification bell if not authenticated
+  }
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => {
-          setShowDropdown(!showDropdown);
-          if (!showDropdown && resetUnreadCount) {
-            resetUnreadCount();
-          }
-        }}
+        onClick={() => setShowDropdown(!showDropdown)}
         className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+        aria-label="Notifications"
       >
         <BellIcon className="h-6 w-6" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full min-w-[20px]">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}

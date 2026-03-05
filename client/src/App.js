@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
-import { SocketProvider } from './context/SocketContext'; // Import SocketProvider
+import { SocketProvider } from './context/SocketContext';
 import AppRoutes from './routes/AppRoutes';
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';
@@ -11,7 +11,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <SocketProvider> {/* Wrap with SocketProvider */}
+        <SocketProvider>
           <div className="min-h-screen flex flex-col">
             <Header />
             <main className="flex-grow">

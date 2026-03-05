@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   getProjectForDesign,
   createDesignSuggestion,
-  getMaterials 
+  getMaterials,
+  uploadDesignImages 
 } from '../../services/designerService';
 import Loader from '../../components/common/Loader';
 import { 
@@ -20,7 +21,10 @@ import {
   DocumentTextIcon,
   PaintBrushIcon,
   ClockIcon,
-  CurrencyRupeeIcon
+  CurrencyRupeeIcon,
+  CloudArrowUpIcon,
+  XMarkIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -50,6 +54,12 @@ const ProjectConsultation = () => {
     materialProcurementDays: 5,
     installationDays: 7
   });
+
+  // Design images state
+  const [designImages, setDesignImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [imagePreview, setImagePreview] = useState(null);
 
   useEffect(() => {
     console.log('ProjectConsultation mounted with ID:', id);
@@ -96,6 +106,7 @@ const ProjectConsultation = () => {
           materialProcurementDays: 5,
           installationDays: 7
         });
+        setDesignImages(suggestion.designImages || []);
       }
     } catch (error) {
       console.error('Error loading project:', error);
@@ -139,6 +150,81 @@ const ProjectConsultation = () => {
 
   const handleRemoveRecommendation = (index) => {
     setRecommendations(recommendations.filter((_, i) => i !== index));
+  };
+
+  // Handle file selection for design images
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    
+    // Validate file types
+    const validFiles = files.filter(file => {
+      const isValid = file.type.startsWith('image/');
+      if (!isValid) {
+        toast.error(`${file.name} is not an image file`);
+      }
+      return isValid;
+    });
+
+    // Validate file size (max 5MB)
+    const sizeValidFiles = validFiles.filter(file => {
+      const isValid = file.size <= 5 * 1024 * 1024; // 5MB
+      if (!isValid) {
+        toast.error(`${file.name} exceeds 5MB limit`);
+      }
+      return isValid;
+    });
+
+    setSelectedFiles(prev => [...prev, ...sizeValidFiles]);
+
+    // Create preview for the first image
+    if (sizeValidFiles.length > 0 && !imagePreview) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(sizeValidFiles[0]);
+    }
+  };
+
+  // Remove selected file
+  const removeSelectedFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    if (selectedFiles.length === 1) {
+      setImagePreview(null);
+    }
+  };
+
+  // Upload design images
+  const handleUploadImages = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error('Please select images to upload');
+      return;
+    }
+
+    setUploadingImages(true);
+    const formData = new FormData();
+    selectedFiles.forEach(file => {
+      formData.append('images', file);
+    });
+
+    try {
+      const uploadedImages = await uploadDesignImages(formData);
+      setDesignImages(prev => [...prev, ...uploadedImages]);
+      setSelectedFiles([]);
+      setImagePreview(null);
+      toast.success(`${uploadedImages.length} images uploaded successfully`);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      toast.error('Failed to upload images');
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  // Remove design image
+  const handleRemoveDesignImage = (index) => {
+    setDesignImages(prev => prev.filter((_, i) => i !== index));
+    toast.success('Image removed');
   };
 
   const calculateTotalCost = () => {
@@ -186,10 +272,11 @@ const ProjectConsultation = () => {
         suggestedTheme,
         colorScheme,
         estimatedTimeline,
+        designImages, // Include uploaded design images
         status
       };
       
-      console.log('Submitting suggestion data:', JSON.stringify(suggestionData, null, 2));
+      console.log('Submitting suggestion:', suggestionData);
       
       const response = await createDesignSuggestion(suggestionData);
       console.log('Submission response:', response);
@@ -202,7 +289,6 @@ const ProjectConsultation = () => {
       }
     } catch (error) {
       console.error('Error submitting suggestion:', error);
-      console.error('Error response:', error.response?.data);
       toast.error(error.response?.data?.error || 'Failed to submit suggestion');
     } finally {
       setSubmitting(false);
@@ -298,16 +384,6 @@ const ProjectConsultation = () => {
               Recommendations
             </button>
             <button
-              onClick={() => setActiveTab('project-details')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'project-details'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Project Details
-            </button>
-            <button
               onClick={() => setActiveTab('design')}
               className={`pb-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'design'
@@ -317,99 +393,123 @@ const ProjectConsultation = () => {
             >
               Design & Theme
             </button>
+            <button
+              onClick={() => setActiveTab('images')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'images'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Design Images ({designImages.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('project-details')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'project-details'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Project Details
+            </button>
           </nav>
         </div>
 
-        {/* Tab Content */}
-        {activeTab === 'project-details' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Customer Info */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center">
-                <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Customer Details
-              </h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <UserIcon className="h-4 w-4 text-gray-400 mr-3" />
-                  <span className="font-medium">{project.customerName || 'N/A'}</span>
-                </div>
-                {project.customerEmail && (
-                  <div className="flex items-center">
-                    <EnvelopeIcon className="h-4 w-4 text-gray-400 mr-3" />
-                    <span>{project.customerEmail}</span>
-                  </div>
-                )}
-                {project.customerPhone && (
-                  <div className="flex items-center">
-                    <PhoneIcon className="h-4 w-4 text-gray-400 mr-3" />
-                    <span>{project.customerPhone}</span>
-                  </div>
-                )}
-                <div className="flex items-center text-sm text-gray-500">
-                  <CalendarIcon className="h-4 w-4 mr-3" />
-                  <span>Submitted: {new Date(project.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Measurements */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center">
-                <HomeIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Measurements ({project.measurements?.length || 0})
-              </h2>
-              {project.measurements && project.measurements.length > 0 ? (
-                <div className="space-y-4">
-                  {project.measurements.map((m, index) => (
-                    <div key={m._id || index} className="border-b last:border-0 pb-3 last:pb-0">
-                      <p className="font-medium">Area {index + 1}</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {m.length} × {m.width} {project.measurementUnit}<br />
-                        Area: {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No measurements added</p>
-              )}
-            </div>
 
-            {/* Photos */}
-            <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center">
-                <PhotoIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Photos ({project.images?.length || 0})
-              </h2>
-              {project.images && project.images.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {project.images.map((image, index) => (
-                    <div 
-                      key={image._id || index}
-                      className="relative cursor-pointer group aspect-square"
-                      onClick={() => setSelectedImage(image.imageUrl)}
-                    >
-                      <img 
-                        src={image.imageUrl} 
-                        alt={`Project ${index + 1}`}
-                        className="w-full h-full object-cover rounded-lg"
-                        onError={(e) => {
-                          e.target.src = 'https://via.placeholder.com/150?text=No+Image';
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center">
-                        <PhotoIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No photos uploaded</p>
-              )}
-            </div>
+{activeTab === 'project-details' && (
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    {/* Customer Info */}
+    <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-lg font-semibold mb-4 flex items-center">
+        <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
+        Customer Details
+      </h2>
+      <div className="space-y-3">
+        <div className="flex items-center">
+          <UserIcon className="h-4 w-4 text-gray-400 mr-3" />
+          <span className="font-medium">{project.customerName || 'N/A'}</span>
+        </div>
+        {project.customerEmail && (
+          <div className="flex items-center">
+            <EnvelopeIcon className="h-4 w-4 text-gray-400 mr-3" />
+            <span>{project.customerEmail}</span>
           </div>
         )}
+        {project.customerPhone && (
+          <div className="flex items-center">
+            <PhoneIcon className="h-4 w-4 text-gray-400 mr-3" />
+            <span>{project.customerPhone}</span>
+          </div>
+        )}
+        <div className="flex items-center text-sm text-gray-500">
+          <CalendarIcon className="h-4 w-4 mr-3" />
+          <span>Submitted: {new Date(project.createdAt).toLocaleDateString()}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* Measurements */}
+    <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-lg font-semibold mb-4 flex items-center">
+        <HomeIcon className="h-5 w-5 mr-2 text-blue-500" />
+        Measurements ({project.measurements?.length || 0})
+      </h2>
+      {project.measurements && project.measurements.length > 0 ? (
+        <div className="space-y-4">
+          {project.measurements.map((m, index) => (
+            <div key={m._id || index} className="border-b last:border-0 pb-3 last:pb-0">
+              <p className="font-medium">{m.areaName || `Area ${index + 1}`}</p>
+              <p className="text-sm text-gray-600 mt-1">
+                {m.length} × {m.width} {project.measurementUnit}<br />
+                Area: {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-gray-500 text-center py-4">No measurements added</p>
+      )}
+    </div>
+
+    {/* Customer Photos - Full width below */}
+    {project.images && project.images.length > 0 && (
+      <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center">
+          <PhotoIcon className="h-5 w-5 mr-2 text-blue-500" />
+          Customer Photos ({project.images.length})
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {project.images.map((image, index) => (
+            <div 
+              key={image._id || index}
+              className="relative cursor-pointer group aspect-square"
+              onClick={() => setSelectedImage(image.imageUrl)}
+            >
+              <img 
+                src={image.imageUrl} 
+                alt={`Customer photo ${index + 1}`}
+                className="w-full h-full object-cover rounded-lg"
+                onError={(e) => {
+                  e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
+                }}
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center">
+                <PhotoIcon className="h-8 w-8 text-white opacity-0 group-hover:opacity-100" />
+              </div>
+              {image.annotations && image.annotations.length > 0 && (
+                <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                  {image.annotations.length} annotations
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
         {activeTab === 'design' && (
           <div className="space-y-6">
@@ -559,6 +659,108 @@ const ProjectConsultation = () => {
           </div>
         )}
 
+        {activeTab === 'images' && (
+          <div className="space-y-6">
+            {/* Upload Design Images */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <PhotoIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Upload Design Images
+              </h2>
+              
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="design-image-upload"
+                />
+                <label
+                  htmlFor="design-image-upload"
+                  className="cursor-pointer inline-flex flex-col items-center"
+                >
+                  <CloudArrowUpIcon className="h-12 w-12 text-gray-400 mb-2" />
+                  <span className="text-sm font-medium text-gray-700">Click to upload images</span>
+                  <span className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB each</span>
+                </label>
+              </div>
+
+              {/* Selected Files Preview */}
+              {selectedFiles.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Files ({selectedFiles.length})</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <button
+                          onClick={() => removeSelectedFile(index)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleUploadImages}
+                    disabled={uploadingImages}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                  >
+                    {uploadingImages ? (
+                      <>
+                        <Loader size="sm" />
+                        <span className="ml-2">Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CloudArrowUpIcon className="h-5 w-5 mr-2" />
+                        Upload {selectedFiles.length} Images
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Uploaded Design Images */}
+              {designImages.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">Uploaded Design Images ({designImages.length})</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {designImages.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={image.imageUrl}
+                          alt={`Design ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg cursor-pointer"
+                          onClick={() => setSelectedImage(image.imageUrl)}
+                        />
+                        <button
+                          onClick={() => handleRemoveDesignImage(index)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                        {image.description && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg">
+                            {image.description}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'recommendations' && (
           <div className="space-y-6">
             {/* Recommendations */}
@@ -578,7 +780,7 @@ const ProjectConsultation = () => {
               </div>
 
               {recommendations.length === 0 ? (
-                <div className="text-center py-12">
+                <div className="text-center py-8">
                   <CubeIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500 mb-4">No materials added yet.</p>
                   <button

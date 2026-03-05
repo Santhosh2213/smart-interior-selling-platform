@@ -131,7 +131,11 @@ const getProjectForDesign = async (req, res) => {
       .lean();
     
     const measurements = await Measurement.find({ projectId: project._id }).lean();
+    
+    // IMPORTANT: Make sure images are populated
     const images = await ProjectImage.find({ projectId: project._id }).lean();
+    
+    console.log(`Found ${images.length} images for project`);
     
     // Get all design suggestions for this project
     const designHistory = await DesignSuggestion.find({ 
@@ -190,6 +194,7 @@ const getProjectForDesign = async (req, res) => {
         _id: m._id.toString()
       })),
       
+      // Make sure images are included in the response
       images: images.map(img => ({
         ...img,
         _id: img._id.toString()
@@ -199,6 +204,8 @@ const getProjectForDesign = async (req, res) => {
       photoCount: images.length,
       designHistory
     };
+    
+    console.log(`Sending project with ${formattedProject.images.length} images`);
     
     res.json({ 
       success: true, 

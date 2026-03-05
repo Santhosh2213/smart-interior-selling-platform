@@ -15,8 +15,6 @@ export const useSocket = () => {
 export const SocketProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
@@ -41,14 +39,7 @@ export const SocketProvider = ({ children }) => {
 
       const handleNotification = (notification) => {
         console.log('New notification:', notification);
-        setNotifications(prev => [notification, ...prev]);
-        setUnreadCount(prev => prev + 1);
-      };
-
-      const handleUserStatusChange = ({ userId, status }) => {
-        setOnlineUsers(prev => 
-          prev.map(u => u.userId === userId ? { ...u, status } : u)
-        );
+        // You can handle notifications here or let the NotificationBell component handle it
       };
 
       // Register listeners
@@ -56,7 +47,6 @@ export const SocketProvider = ({ children }) => {
       socketService.on('disconnect', handleDisconnect);
       socketService.on('online-users', handleOnlineUsers);
       socketService.on('notification', handleNotification);
-      socketService.on('user-status-changed', handleUserStatusChange);
 
       return () => {
         // Clean up listeners
@@ -64,21 +54,10 @@ export const SocketProvider = ({ children }) => {
         socketService.off('disconnect', handleDisconnect);
         socketService.off('online-users', handleOnlineUsers);
         socketService.off('notification', handleNotification);
-        socketService.off('user-status-changed', handleUserStatusChange);
         socketService.disconnect();
       };
     }
   }, [isAuthenticated, user]);
-
-  // Function to listen for custom events
-  const on = (event, callback) => {
-    socketService.on(event, callback);
-  };
-
-  // Function to emit events
-  const emit = (event, data) => {
-    socketService.emit(event, data);
-  };
 
   // Function to join a project room
   const joinProjectRoom = (projectId) => {
@@ -110,15 +89,18 @@ export const SocketProvider = ({ children }) => {
     socketService.markMessagesAsRead(messageIds, senderId);
   };
 
-  // Function to reset unread count
-  const resetUnreadCount = () => {
-    setUnreadCount(0);
+  // Function to listen for custom events
+  const on = (event, callback) => {
+    socketService.on(event, callback);
+  };
+
+  // Function to emit custom events
+  const emit = (event, data) => {
+    socketService.emit(event, data);
   };
 
   const value = {
     onlineUsers,
-    notifications,
-    unreadCount,
     isConnected,
     joinProjectRoom,
     leaveProjectRoom,
@@ -126,9 +108,8 @@ export const SocketProvider = ({ children }) => {
     sendProjectMessage,
     sendTyping,
     markAsRead,
-    resetUnreadCount,
-    on,        // Add this for custom event listeners
-    emit       // Add this for custom events
+    on,
+    emit
   };
 
   return (

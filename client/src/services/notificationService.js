@@ -1,18 +1,25 @@
 import api from './api';
 
 // Get all notifications
-const getNotifications = async () => {
+export const getNotifications = async () => {
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No token found, skipping notification fetch');
+      return { data: [], unreadCount: 0 };
+    }
+    
     const response = await api.get('/notifications');
     return response.data;
   } catch (error) {
     console.error('Error fetching notifications:', error);
-    throw error;
+    // Return empty data on error to prevent app crash
+    return { data: [], unreadCount: 0 };
   }
 };
 
 // Mark notification as read
-const markNotificationAsRead = async (notificationId) => {
+export const markNotificationAsRead = async (notificationId) => {
   try {
     const response = await api.put(`/notifications/${notificationId}/read`);
     return response.data;
@@ -23,7 +30,7 @@ const markNotificationAsRead = async (notificationId) => {
 };
 
 // Mark all notifications as read
-const markAllAsRead = async () => {
+export const markAllAsRead = async () => {
   try {
     const response = await api.put('/notifications/read-all');
     return response.data;
@@ -34,7 +41,7 @@ const markAllAsRead = async () => {
 };
 
 // Delete notification
-const deleteNotification = async (notificationId) => {
+export const deleteNotification = async (notificationId) => {
   try {
     const response = await api.delete(`/notifications/${notificationId}`);
     return response.data;
@@ -44,16 +51,7 @@ const deleteNotification = async (notificationId) => {
   }
 };
 
-// Create a service object with all functions
 const notificationService = {
-  getNotifications,
-  markNotificationAsRead,
-  markAllAsRead,
-  deleteNotification
-};
-
-// Export both named exports and default
-export {
   getNotifications,
   markNotificationAsRead,
   markAllAsRead,
