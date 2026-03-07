@@ -237,6 +237,8 @@ const uploadDesignImages = async (req, res) => {
       });
     }
 
+    console.log(`Uploaded ${req.files.length} files`);
+
     const uploadedImages = [];
     
     for (const file of req.files) {
@@ -254,7 +256,10 @@ const uploadDesignImages = async (req, res) => {
     
   } catch (error) {
     console.error('Error uploading design images:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 };
 

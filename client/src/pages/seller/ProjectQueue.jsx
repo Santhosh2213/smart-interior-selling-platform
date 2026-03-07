@@ -5,7 +5,9 @@ import {
   UserIcon,
   CalendarIcon,
   ArrowRightIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  CheckCircleIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 import { getSellerProjectQueue } from '../../services/projectService';
 import Loader from '../../components/common/Loader';
@@ -19,7 +21,8 @@ const ProjectQueue = () => {
     pending: 0,
     inProgress: 0,
     quoted: 0,
-    completed: 0
+    completed: 0,
+    designApproved: 0
   });
 
   useEffect(() => {
@@ -37,7 +40,8 @@ const ProjectQueue = () => {
         total: projectsData.length,
         pending: projectsData.filter(p => p.status === 'pending' || p.status === 'PENDING_DESIGN').length,
         inProgress: projectsData.filter(p => p.status === 'quoting' || p.status === 'DESIGN_IN_PROGRESS').length,
-        quoted: projectsData.filter(p => p.status === 'quoted' || p.status === 'DESIGN_APPROVED').length,
+        quoted: projectsData.filter(p => p.status === 'quoted').length,
+        designApproved: projectsData.filter(p => p.status === 'DESIGN_APPROVED').length,
         completed: projectsData.filter(p => p.status === 'completed').length
       };
       setStats(stats);
@@ -57,8 +61,9 @@ const ProjectQueue = () => {
       case 'quoting':
       case 'DESIGN_IN_PROGRESS':
         return 'bg-blue-100 text-blue-800';
-      case 'quoted':
       case 'DESIGN_APPROVED':
+        return 'bg-green-100 text-green-800';
+      case 'quoted':
         return 'bg-purple-100 text-purple-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
@@ -96,7 +101,7 @@ const ProjectQueue = () => {
       <p className="text-gray-600 mb-8">Manage incoming project requests</p>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Total</p>
           <p className="text-2xl font-bold">{stats.total}</p>
@@ -108,6 +113,10 @@ const ProjectQueue = () => {
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">In Progress</p>
           <p className="text-2xl font-bold">{stats.inProgress}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-gray-600">Design Approved</p>
+          <p className="text-2xl font-bold">{stats.designApproved}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Quoted</p>
@@ -131,7 +140,8 @@ const ProjectQueue = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project) => {
-            const isQuoted = project.status === 'quoted' || project.status === 'DESIGN_APPROVED';
+            const isQuoted = project.status === 'quoted';
+            const isDesignApproved = project.status === 'DESIGN_APPROVED';
             const quotationId = project.quotations?.[0]?._id;
             
             return (
@@ -143,6 +153,7 @@ const ProjectQueue = () => {
                     </h3>
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status)}`}>
                       {project.status === 'PENDING_DESIGN' ? 'Pending Design' : 
+                       project.status === 'DESIGN_IN_PROGRESS' ? 'Design in Progress' :
                        project.status === 'DESIGN_APPROVED' ? 'Design Approved' :
                        project.status === 'quoted' ? 'Quoted' : project.status}
                     </span>
@@ -168,24 +179,42 @@ const ProjectQueue = () => {
                     <span>{project.images?.length || project.photoCount || 0} photos</span>
                   </div>
 
-                  {isQuoted && quotationId ? (
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    {/* View Details Button - Always visible */}
                     <Link
-                      to={`/seller/quotations/${quotationId}`}
-                      className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+                      to={`/seller/project/${project._id}`}
+                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
                     >
-                      <DocumentTextIcon className="h-4 w-4 mr-2" />
-                      View Quotation
+                      <EyeIcon className="h-4 w-4 mr-2" />
+                      View Details
                       <ArrowRightIcon className="h-4 w-4 ml-2" />
                     </Link>
-                  ) : (
-<Link
-  to={`/seller/project/${project._id}`}
-  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
->
-  View Details
-  <ArrowRightIcon className="h-4 w-4 ml-2" />
-</Link>
-                  )}
+
+                    {/* Design Approved Button - Only for DESIGN_APPROVED status */}
+                    {isDesignApproved && (
+                      <Link
+                        to={`/seller/approved-design/${project._id}`}
+                        className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+                      >
+                        <CheckCircleIcon className="h-4 w-4 mr-2" />
+                        View Approved Design
+                        <ArrowRightIcon className="h-4 w-4 ml-2" />
+                      </Link>
+                    )}
+
+                    {/* View Quotation Button - Only for quoted projects */}
+                    {isQuoted && quotationId && (
+                      <Link
+                        to={`/seller/quotations/${quotationId}`}
+                        className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+                      >
+                        <DocumentTextIcon className="h-4 w-4 mr-2" />
+                        View Quotation
+                        <ArrowRightIcon className="h-4 w-4 ml-2" />
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             );

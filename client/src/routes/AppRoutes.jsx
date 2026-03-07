@@ -29,6 +29,7 @@ import GSTSettings from '../pages/seller/GSTSettings';
 import OrderManagement from '../pages/seller/OrderManagement';
 import Reports from '../pages/seller/Reports';
 import ProjectDetailsView from '../pages/seller/ProjectDetailsView';
+import ApprovedDesignView from '../pages/seller/ApprovedDesignView';
 
 // Designer Pages
 import DesignerDashboard from '../pages/designer/Dashboard';
@@ -90,6 +91,8 @@ const AppRoutes = () => {
         <Route path="orders" element={<SellerRoute><OrderManagement /></SellerRoute>} />
         <Route path="reports" element={<SellerRoute><Reports /></SellerRoute>} />
         <Route path="project/:id" element={<SellerRoute><ProjectDetailsView /></SellerRoute>} />
+        <Route path="approved-design/:id" element={<SellerRoute><ApprovedDesignView /></SellerRoute>} />
+        
       </Route>
 
       {/* Designer Routes */}

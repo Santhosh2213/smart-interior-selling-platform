@@ -149,7 +149,13 @@ exports.getProjectById = async (req, res) => {
         }
       })
       .populate('assignedDesigner')
-      .populate('assignedSeller');
+      .populate('assignedSeller')
+      .populate({
+        path: 'designSuggestionId',  // Add this to populate the design suggestion
+        populate: {
+          path: 'recommendations.materialId'  // Also populate material details in recommendations
+        }
+      });
 
     if (!project) {
       return res.status(404).json({
@@ -176,8 +182,8 @@ exports.getProjectById = async (req, res) => {
         project.assignedSeller?.toString() === seller._id.toString() || 
         project.status === 'pending' ||
         project.status === 'PENDING_DESIGN' ||
-        project.status === 'quoted' ||        // ADD THIS
-        project.status === 'DESIGN_APPROVED'   // ADD THIS
+        project.status === 'quoted' ||
+        project.status === 'DESIGN_APPROVED'
       );
     }
     else if (req.user.role === 'designer') {
