@@ -12,6 +12,7 @@ const createQuotation = async (req, res) => {
     const { projectId, items, laborCost, transportCost, discount, discountType, terms, notes } = req.body;
 
     console.log('Creating quotation for project:', projectId);
+    console.log('Received items:', JSON.stringify(items, null, 2));
 
     // Get seller profile
     const seller = await Seller.findOne({ userId: req.user.id });
@@ -31,35 +32,37 @@ const createQuotation = async (req, res) => {
       });
     }
 
-    // Calculate quotation totals
+    // Calculate quotation totals using the values from frontend
     let subtotal = 0;
     let gstTotal = 0;
     const quotationItems = [];
 
+    // Use the items directly from request body - they already have all calculated values
     for (const item of items) {
-      const material = await Material.findById(item.materialId);
-      if (!material) {
-        return res.status(404).json({
+      // Validate that all required fields are present
+      if (!item.materialId || !item.quantity || !item.pricePerUnit) {
+        return res.status(400).json({
           success: false,
-          error: `Material not found: ${item.materialId}`
+          error: 'Missing required fields in item'
         });
       }
 
-      const itemSubtotal = material.pricePerUnit * item.quantity;
-      const itemGst = itemSubtotal * (material.gstRate / 100);
-      const itemTotal = itemSubtotal + itemGst;
+      // Use the values sent from frontend
+      const itemSubtotal = item.subtotal || (item.quantity * item.pricePerUnit);
+      const itemGst = item.gstAmount || (itemSubtotal * (item.gstRate / 100));
+      const itemTotal = item.total || (itemSubtotal + itemGst);
 
       subtotal += itemSubtotal;
       gstTotal += itemGst;
 
       quotationItems.push({
-        materialId: material._id,
-        materialName: material.name,
+        materialId: item.materialId,
+        materialName: item.materialName || 'Unknown',
         quantity: item.quantity,
-        unit: material.unit,
-        pricePerUnit: material.pricePerUnit,
+        unit: item.unit || 'sqft',
+        pricePerUnit: item.pricePerUnit, // Use the price from frontend
         subtotal: itemSubtotal,
-        gstRate: material.gstRate,
+        gstRate: item.gstRate || 18,
         gstAmount: itemGst,
         total: itemTotal
       });
@@ -83,6 +86,7 @@ const createQuotation = async (req, res) => {
     const quotationNumber = `QT-${timestamp}-${random}`;
 
     console.log('Generated quotation number:', quotationNumber);
+    console.log('Final totals:', { subtotal, gstTotal, total });
 
     // Create quotation
     const quotation = await Quotation.create({
