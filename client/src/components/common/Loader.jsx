@@ -1,16 +1,5 @@
 import React from 'react';
 
-<<<<<<< HEAD
-const Loader = () => {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="relative">
-        <div className="h-24 w-24 rounded-full border-t-4 border-b-4 border-blue-500 animate-spin"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="h-16 w-16 rounded-full border-t-4 border-b-4 border-blue-300 animate-spin"></div>
-        </div>
-      </div>
-=======
 const Loader = ({ size = 'medium', color = 'blue', fullScreen = true }) => {
   // Size mappings
   const sizes = {
@@ -139,7 +128,6 @@ const Loader = ({ size = 'medium', color = 'blue', fullScreen = true }) => {
   return (
     <div className={containerClass}>
       <LoaderComponent />
->>>>>>> b95e7b1a961b67a7b891dd014314da41665e1d1c
     </div>
   );
 };

@@ -80,12 +80,4 @@ const designerService = {
   getMaterials
 };
 
-const designerService = {
-  getDesignerQueue,
-  getProjectForDesign,
-  createDesignSuggestion,
-  getSuggestionHistory,
-  getMaterials
-};
-
 export default designerService;
