@@ -17,7 +17,7 @@ const projectSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'pending', 'quoting', 'quoted', 'approved', 'rejected', 'completed', 'cancelled'],
+    enum: ['draft', 'pending', 'quoting', 'quoted', 'approved', 'rejected', 'completed', 'cancelled', 'PENDING_DESIGN', 'DESIGN_COMPLETED'],
     default: 'draft'
   },
   measurementUnit: {
@@ -41,6 +41,13 @@ const projectSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Quotation'
   }],
+  
+  // Reference to design suggestion
+  designSuggestionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DesignSuggestion',
+    sparse: true
+  },
   
   // Designer fields - UPDATED for better workflow
   assignedDesigner: {
@@ -140,5 +147,6 @@ projectSchema.index({ customerId: 1, createdAt: -1 });
 projectSchema.index({ assignedDesigner: 1, status: 1 });
 projectSchema.index({ assignedSeller: 1, status: 1 });
 projectSchema.index({ status: 1, createdAt: -1 });
+projectSchema.index({ designSuggestionId: 1 });
 
 module.exports = mongoose.model('Project', projectSchema);

@@ -2,30 +2,31 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 const {
-  getDesignerDashboard,
-  getAssignedProjects,
-  getProjectForReview,
-  addDesignSuggestions,
-  getMaterialRecommendations,
-  updateSuggestionStatus,
-  sendToSeller
+  getDesignerQueue,
+  getProjectForDesign,
+  createDesignSuggestion,
+  getSuggestionHistory,
+  getMaterials
 } = require('../controllers/designerController');
 
 // All routes require authentication and designer role
 router.use(protect);
 router.use(authorize('designer'));
 
-// Dashboard
-router.get('/dashboard', getDesignerDashboard);
+// Queue routes
+router.get('/queue', getDesignerQueue);
+router.get('/project/:id', getProjectForDesign);
 
-// Projects
-router.get('/projects', getAssignedProjects);
-router.get('/projects/:id', getProjectForReview);
-router.get('/projects/:projectId/recommendations', getMaterialRecommendations);
+// Suggestion routes
+router.post('/suggestions', createDesignSuggestion);
+router.get('/suggestions/history', getSuggestionHistory);
 
-// Suggestions
-router.post('/projects/:projectId/suggestions', addDesignSuggestions);
-router.put('/suggestions/:suggestionId', updateSuggestionStatus);
-router.post('/projects/:projectId/send-to-seller', sendToSeller);
+// Materials route
+router.get('/materials', getMaterials);
+
+// Health check
+router.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Designer routes working' });
+});
 
 module.exports = router;

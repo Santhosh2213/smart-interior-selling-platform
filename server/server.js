@@ -1,14 +1,17 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const cors = require('cors');
-const path = require('path');
+const http = require('http');
+const { initializeSocket } = require('./config/socket');
 
-// Load env vars
 dotenv.config();
 
-// Import app
 const app = require('./app');
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+const io = initializeSocket(server);
+app.set('io', io); // Make io accessible in routes
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -20,7 +23,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 

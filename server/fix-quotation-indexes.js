@@ -103,4 +103,4 @@ async function fixQuotationIndexes() {
   }
 }
 
-fixQuotationIndexes();
+fixQuotationIndexes();  
