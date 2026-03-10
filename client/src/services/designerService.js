@@ -22,6 +22,22 @@ export const getProjectForDesign = async (projectId) => {
   }
 };
 
+// Upload design images
+export const uploadDesignImages = async (formData) => {
+  try {
+    const response = await api.post('/designer/upload-design-images', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data.data;
+  } catch (error) {
+    console.error('Error uploading design images:', error);
+    throw error;
+  }
+};
+
+
 // Create or update design suggestion
 export const createDesignSuggestion = async (suggestionData) => {
   try {
@@ -54,6 +70,14 @@ export const getMaterials = async (category = '') => {
     console.error('Error fetching materials:', error);
     throw error;
   }
+};
+
+const designerService = {
+  getDesignerQueue,
+  getProjectForDesign,
+  createDesignSuggestion,
+  getSuggestionHistory,
+  getMaterials
 };
 
 const designerService = {

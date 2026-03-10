@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { projectService } from '../../services/projectService';
+import projectService from '../../services/projectService'; // Fixed import
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -25,7 +25,7 @@ const CreateProject = () => {
     setLoading(true);
 
     try {
-      const response = await projectService.createProject(formData);
+      const response = await projectService.createProject(formData); // Fixed
       toast.success('Project created successfully!');
       navigate(`/customer/projects/${response.data._id}`);
     } catch (error) {
@@ -37,7 +37,6 @@ const CreateProject = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
-      {/* Back Button */}
       <button
         onClick={() => navigate('/customer/dashboard')}
         className="flex items-center text-gray-600 hover:text-primary-600 mb-6"
@@ -50,7 +49,6 @@ const CreateProject = () => {
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Project</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Project Title */}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
               Project Title <span className="text-red-500">*</span>
@@ -67,7 +65,6 @@ const CreateProject = () => {
             />
           </div>
 
-          {/* Description */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
               Description
@@ -83,7 +80,6 @@ const CreateProject = () => {
             />
           </div>
 
-          {/* Measurement Unit */}
           <div>
             <label htmlFor="measurementUnit" className="block text-sm font-medium text-gray-700 mb-2">
               Preferred Measurement Unit <span className="text-red-500">*</span>
@@ -99,12 +95,8 @@ const CreateProject = () => {
               <option value="feet">Feet (ft)</option>
               <option value="meter">Meters (m)</option>
             </select>
-            <p className="mt-1 text-sm text-gray-500">
-              You can change this later for individual measurements
-            </p>
           </div>
 
-          {/* Next Steps Info */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-blue-800 mb-2">Next Steps:</h3>
             <ul className="text-sm text-blue-700 space-y-1">
@@ -115,7 +107,6 @@ const CreateProject = () => {
             </ul>
           </div>
 
-          {/* Form Actions */}
           <div className="flex justify-end space-x-4">
             <button
               type="button"

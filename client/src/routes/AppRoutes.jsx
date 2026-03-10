@@ -17,16 +17,19 @@ import CreateProject from '../pages/customer/CreateProject';
 import ProjectDetails from '../pages/customer/ProjectDetails';
 import QuotationView from '../pages/customer/QuotationView';
 import ProfilePage from '../pages/customer/ProfilePage';
+import DesignReview from '../pages/customer/DesignReview';
 
-// Seller Pages
+// Seller Pages - VERIFY THESE PATHS ARE CORRECT
 import SellerDashboard from '../pages/seller/Dashboard';
 import ProjectQueue from '../pages/seller/ProjectQueue';
-import CreateQuotation from '../pages/seller/CreateQuotation';
+import CreateQuotation from '../pages/seller/CreateQuotation';  // Make sure this file exists
 import QuotationList from '../pages/seller/QuotationList';
 import MaterialDatabase from '../pages/seller/MaterialDatabase';
 import GSTSettings from '../pages/seller/GSTSettings';
 import OrderManagement from '../pages/seller/OrderManagement';
 import Reports from '../pages/seller/Reports';
+import ProjectDetailsView from '../pages/seller/ProjectDetailsView';
+import ApprovedDesignView from '../pages/seller/ApprovedDesignView';
 
 // Designer Pages
 import DesignerDashboard from '../pages/designer/Dashboard';
@@ -71,6 +74,7 @@ const AppRoutes = () => {
         <Route path="projects/create" element={<CustomerRoute><CreateProject /></CustomerRoute>} />
         <Route path="projects/:id" element={<CustomerRoute><ProjectDetails /></CustomerRoute>} />
         <Route path="quotations/:id" element={<CustomerRoute><QuotationView /></CustomerRoute>} />
+        <Route path="design-review/:id" element={<CustomerRoute><DesignReview /></CustomerRoute>} />
         <Route path="profile" element={<CustomerRoute><ProfilePage /></CustomerRoute>} />
       </Route>
 
@@ -81,10 +85,14 @@ const AppRoutes = () => {
         <Route path="queue" element={<SellerRoute><ProjectQueue /></SellerRoute>} />
         <Route path="quotations/create/:projectId" element={<SellerRoute><CreateQuotation /></SellerRoute>} />
         <Route path="quotations" element={<SellerRoute><QuotationList /></SellerRoute>} />
+        <Route path="quotations/:id" element={<SellerRoute><QuotationView /></SellerRoute>} />
         <Route path="materials" element={<SellerRoute><MaterialDatabase /></SellerRoute>} />
         <Route path="gst" element={<SellerRoute><GSTSettings /></SellerRoute>} />
         <Route path="orders" element={<SellerRoute><OrderManagement /></SellerRoute>} />
         <Route path="reports" element={<SellerRoute><Reports /></SellerRoute>} />
+        <Route path="project/:id" element={<SellerRoute><ProjectDetailsView /></SellerRoute>} />
+        <Route path="approved-design/:id" element={<SellerRoute><ApprovedDesignView /></SellerRoute>} />
+        
       </Route>
 
       {/* Designer Routes */}

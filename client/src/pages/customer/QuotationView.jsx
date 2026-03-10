@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { quotationService } from '../../services/quotationService';
 import { 
-  ArrowLeftIcon, 
-  DocumentArrowDownIcon,
+  getQuotationById,
+  acceptQuotation,
+  rejectQuotation,
+  requestQuotationChanges
+} from '../../services/quotationService';
+import { 
+  ArrowLeftIcon,
   CheckCircleIcon,
   XCircleIcon,
-  PrinterIcon,
-  ShareIcon
+  PencilIcon,
+  DocumentTextIcon,
+  CurrencyRupeeIcon,
+  CalendarIcon,
+  UserIcon,
+  EnvelopeIcon,
+  PhoneIcon
 } from '@heroicons/react/24/outline';
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
@@ -17,299 +26,404 @@ const QuotationView = () => {
   const navigate = useNavigate();
   const [quotation, setQuotation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [showChangeForm, setShowChangeForm] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
 
   useEffect(() => {
-    fetchQuotation();
+    loadQuotation();
   }, [id]);
 
-  const fetchQuotation = async () => {
+  const loadQuotation = async () => {
     try {
-      const response = await quotationService.getQuotationById(id);
+      setLoading(true);
+      const response = await getQuotationById(id);
       setQuotation(response.data);
     } catch (error) {
-      toast.error('Failed to fetch quotation');
+      console.error('Error loading quotation:', error);
+      toast.error('Failed to load quotation');
       navigate('/customer/dashboard');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAcceptQuote = async () => {
+  const handleAccept = async () => {
+    if (!window.confirm('Are you sure you want to accept this quotation?')) return;
+    
+    setSubmitting(true);
     try {
-      await quotationService.acceptQuotation(id);
-      toast.success('Quotation accepted successfully');
-      fetchQuotation();
+      await acceptQuotation(id);
+      toast.success('Quotation accepted successfully!');
+      loadQuotation();
     } catch (error) {
+      console.error('Error accepting quotation:', error);
       toast.error('Failed to accept quotation');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleRejectQuote = async () => {
+  const handleReject = async () => {
+    const reason = window.prompt('Please provide a reason for rejection:');
+    if (!reason) return;
+    
+    setSubmitting(true);
     try {
-      await quotationService.rejectQuotation(id);
+      await rejectQuotation(id, reason);
       toast.success('Quotation rejected');
-      fetchQuotation();
+      loadQuotation();
     } catch (error) {
+      console.error('Error rejecting quotation:', error);
       toast.error('Failed to reject quotation');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleDownloadPDF = async () => {
+  const handleRequestChanges = async (e) => {
+    e.preventDefault();
+    if (!changeReason.trim()) {
+      toast.error('Please describe the changes you want');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const response = await quotationService.downloadQuotationPDF(id);
-      
-      // Create blob and download
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `quotation-${quotation.quotationNumber}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      await requestQuotationChanges(id, { reason: changeReason });
+      toast.success('Change request sent to seller');
+      setShowChangeForm(false);
+      setChangeReason('');
+      loadQuotation();
     } catch (error) {
-      toast.error('Failed to download PDF');
+      console.error('Error requesting changes:', error);
+      toast.error('Failed to send change request');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      draft: { color: 'bg-gray-100 text-gray-800', text: 'Draft' },
-      sent: { color: 'bg-blue-100 text-blue-800', text: 'Sent' },
-      viewed: { color: 'bg-yellow-100 text-yellow-800', text: 'Viewed' },
-      accepted: { color: 'bg-green-100 text-green-800', text: 'Accepted' },
-      rejected: { color: 'bg-red-100 text-red-800', text: 'Rejected' },
-      expired: { color: 'bg-gray-100 text-gray-800', text: 'Expired' },
-      revised: { color: 'bg-purple-100 text-purple-800', text: 'Revised' }
-    };
-    
-    const config = statusConfig[status] || statusConfig.draft;
-    
-    return (
-      <span className={`px-3 py-1 text-sm font-medium rounded-full ${config.color}`}>
-        {config.text}
-      </span>
-    );
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2
+    }).format(amount);
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader size="lg" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader />
       </div>
     );
   }
 
   if (!quotation) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">Quotation not found</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Quotation not found</p>
+          <button
+            onClick={() => navigate('/customer/dashboard')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
 
+  const canRespond = quotation.status === 'sent' || quotation.status === 'viewed';
+  const isPending = quotation.status === 'sent' || quotation.status === 'viewed';
+  const isAccepted = quotation.status === 'accepted';
+  const isRejected = quotation.status === 'rejected';
+  const changesRequested = quotation.status === 'changes_requested';
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <div className="flex items-center">
+      <div className="bg-white shadow sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <button
             onClick={() => navigate('/customer/dashboard')}
-            className="mr-4 text-gray-600 hover:text-primary-600"
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-2"
           >
-            <ArrowLeftIcon className="h-5 w-5" />
+            <ArrowLeftIcon className="h-4 w-4 mr-1" />
+            Back to Dashboard
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quotation Details</h1>
-            <p className="text-gray-600">Quotation #{quotation.quotationNumber}</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Quotation #{quotation.quotationNumber}</h1>
+              <p className="text-sm text-gray-500 mt-1">Project: {quotation.projectId?.title}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                isAccepted ? 'bg-green-100 text-green-800' :
+                isRejected ? 'bg-red-100 text-red-800' :
+                changesRequested ? 'bg-yellow-100 text-yellow-800' :
+                'bg-blue-100 text-blue-800'
+              }`}>
+                {quotation.status}
+              </span>
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          {quotation.status === 'sent' && (
-            <>
-              <button
-                onClick={handleAcceptQuote}
-                className="btn-primary flex items-center"
-              >
-                <CheckCircleIcon className="h-4 w-4 mr-1" />
-                Accept Quote
-              </button>
-              <button
-                onClick={handleRejectQuote}
-                className="btn-secondary flex items-center text-red-600 hover:text-red-700"
-              >
-                <XCircleIcon className="h-4 w-4 mr-1" />
-                Reject
-              </button>
-            </>
-          )}
-          
-          <button
-            onClick={handleDownloadPDF}
-            className="btn-secondary flex items-center"
-          >
-            <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
-            PDF
-          </button>
-          
-          <button className="btn-secondary flex items-center">
-            <PrinterIcon className="h-4 w-4 mr-1" />
-            Print
-          </button>
-          
-          <button className="btn-secondary flex items-center">
-            <ShareIcon className="h-4 w-4 mr-1" />
-            Share
-          </button>
         </div>
       </div>
 
-      {/* Quotation Card */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {/* Company Header */}
-        <div className="bg-gray-50 px-8 py-6 border-b">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{quotation.sellerId?.businessName}</h2>
-              <p className="text-gray-600 mt-1">GST: {quotation.sellerId?.gstin}</p>
-              <p className="text-gray-600">{quotation.sellerId?.businessAddress?.addressLine1}</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Quotation Details */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Items */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Items</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2">Item</th>
+                      <th className="text-right py-2">Qty</th>
+                      <th className="text-right py-2">Unit Price</th>
+                      <th className="text-right py-2">GST</th>
+                      <th className="text-right py-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotation.items.map((item, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="py-3">
+                          <p className="font-medium">{item.materialName}</p>
+                          <p className="text-sm text-gray-500">{item.unit}</p>
+                        </td>
+                        <td className="text-right py-3">{item.quantity}</td>
+                        <td className="text-right py-3">{formatCurrency(item.pricePerUnit)}</td>
+                        <td className="text-right py-3">{item.gstRate}%</td>
+                        <td className="text-right py-3 font-medium">{formatCurrency(item.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Terms & Notes */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Terms & Notes
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium mb-2">Terms & Conditions</h3>
+                  <p className="text-gray-600 whitespace-pre-line">{quotation.terms}</p>
+                </div>
+                
+                {quotation.notes && (
+                  <div>
+                    <h3 className="font-medium mb-2">Additional Notes</h3>
+                    <p className="text-gray-600">{quotation.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Summary & Actions */}
+          <div className="space-y-6">
+            {/* Summary Card */}
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow p-6 text-white">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <CurrencyRupeeIcon className="h-5 w-5 mr-2" />
+                Summary
+              </h2>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(quotation.subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>GST:</span>
+                  <span>{formatCurrency(quotation.gstTotal)}</span>
+                </div>
+                {quotation.laborCost > 0 && (
+                  <div className="flex justify-between">
+                    <span>Labor:</span>
+                    <span>{formatCurrency(quotation.laborCost)}</span>
+                  </div>
+                )}
+                {quotation.transportCost > 0 && (
+                  <div className="flex justify-between">
+                    <span>Transport:</span>
+                    <span>{formatCurrency(quotation.transportCost)}</span>
+                  </div>
+                )}
+                {quotation.discount > 0 && (
+                  <div className="flex justify-between text-yellow-200">
+                    <span>Discount ({quotation.discountType === 'percentage' ? `${quotation.discount}%` : 'Fixed'}):</span>
+                    <span>-{formatCurrency(quotation.discountAmount || (quotation.discountType === 'percentage' ? (quotation.subtotal + quotation.gstTotal) * (quotation.discount / 100) : quotation.discount))}</span>
+                  </div>
+                )}
+                <div className="border-t border-white/30 my-2 pt-2">
+                  <div className="flex justify-between text-xl font-bold">
+                    <span>Total:</span>
+                    <span>{formatCurrency(quotation.total)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Validity Card */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold mb-3 flex items-center">
+                <CalendarIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Validity
+              </h3>
               <p className="text-gray-600">
-                {quotation.sellerId?.businessAddress?.city}, {quotation.sellerId?.businessAddress?.state} - {quotation.sellerId?.businessAddress?.pincode}
+                Valid until: {formatDate(quotation.validUntil)}
               </p>
-            </div>
-            <div className="text-right">
-              {getStatusBadge(quotation.status)}
-              <p className="text-sm text-gray-500 mt-2">Valid Until: {new Date(quotation.validUntil).toLocaleDateString()}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Customer & Project Info */}
-        <div className="px-8 py-4 border-b bg-white">
-          <div className="grid grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Bill To:</h3>
-              <p className="font-medium">{quotation.customerId?.userId?.name}</p>
-              <p className="text-sm text-gray-600">{quotation.customerId?.addresses?.[0]?.addressLine1}</p>
-              <p className="text-sm text-gray-600">
-                {quotation.customerId?.addresses?.[0]?.city}, {quotation.customerId?.addresses?.[0]?.state}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">Project: {quotation.projectId?.title}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Quote Date: {new Date(quotation.createdAt).toLocaleDateString()}</p>
-              <p className="text-sm text-gray-600">Quote #: {quotation.quotationNumber}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Items Table */}
-        <div className="px-8 py-6">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">GST %</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {quotation.items?.map((item, index) => (
-                <tr key={index}>
-                  <td className="px-4 py-4">
-                    <div className="text-sm font-medium text-gray-900">{item.materialName}</div>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.quantity}</td>
-                  <td className="px-4 py-4 text-sm text-gray-600">{item.unit}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">₹{item.pricePerUnit}</td>
-                  <td className="px-4 py-4 text-sm text-gray-600">{item.gstRate}%</td>
-                  <td className="px-4 py-4 text-sm text-gray-900 text-right">₹{item.total?.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Summary */}
-        <div className="px-8 py-6 bg-gray-50 border-t">
-          <div className="flex justify-end">
-            <div className="w-80">
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">₹{quotation.subtotal?.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">GST Total:</span>
-                <span className="font-medium">₹{quotation.gstTotal?.toFixed(2)}</span>
-              </div>
-              {quotation.laborCost > 0 && (
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Labor Cost:</span>
-                  <span className="font-medium">₹{quotation.laborCost?.toFixed(2)}</span>
-                </div>
+              {new Date(quotation.validUntil) < new Date() && (
+                <p className="text-sm text-red-600 mt-2">This quotation has expired</p>
               )}
-              {quotation.transportCost > 0 && (
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Transport:</span>
-                  <span className="font-medium">₹{quotation.transportCost?.toFixed(2)}</span>
-                </div>
-              )}
-              {quotation.discount > 0 && (
-                <div className="flex justify-between py-2 text-green-600">
-                  <span>Discount ({quotation.discountType === 'percentage' ? `${quotation.discount}%` : 'Fixed'}):</span>
-                  <span>-₹{(quotation.discountType === 'percentage' 
-                    ? (quotation.subtotal + quotation.gstTotal) * (quotation.discount / 100)
-                    : quotation.discount
-                  ).toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between py-3 border-t border-gray-300 text-lg font-bold">
-                <span>Total Amount:</span>
-                <span>₹{quotation.total?.toFixed(2)}</span>
+            </div>
+
+            {/* Customer Info */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="font-semibold mb-3 flex items-center">
+                <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Customer Details
+              </h3>
+              <div className="space-y-2">
+                <p className="flex items-center">
+                  <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
+                  {quotation.customerId?.name || 'N/A'}
+                </p>
+                {quotation.customerId?.email && (
+                  <p className="flex items-center">
+                    <EnvelopeIcon className="h-4 w-4 text-gray-400 mr-2" />
+                    {quotation.customerId.email}
+                  </p>
+                )}
+                {quotation.customerId?.phone && (
+                  <p className="flex items-center">
+                    <PhoneIcon className="h-4 w-4 text-gray-400 mr-2" />
+                    {quotation.customerId.phone}
+                  </p>
+                )}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Terms & Notes */}
-        {(quotation.terms || quotation.notes) && (
-          <div className="px-8 py-4 border-t">
-            {quotation.terms && (
-              <div className="mb-3">
-                <h4 className="text-sm font-medium text-gray-700 mb-1">Terms & Conditions:</h4>
-                <p className="text-sm text-gray-600">{quotation.terms}</p>
+            {/* Action Buttons - Only show if can respond */}
+            {canRespond && (
+              <div className="bg-white rounded-lg shadow p-6 space-y-4">
+                {!showChangeForm ? (
+                  <>
+                    <button
+                      onClick={handleAccept}
+                      disabled={submitting}
+                      className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      <CheckCircleIcon className="h-5 w-5 mr-2" />
+                      Accept Quotation
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowChangeForm(true)}
+                      disabled={submitting}
+                      className="w-full bg-yellow-600 text-white py-3 px-4 rounded-lg hover:bg-yellow-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      <PencilIcon className="h-5 w-5 mr-2" />
+                      Request Changes
+                    </button>
+                    
+                    <button
+                      onClick={handleReject}
+                      disabled={submitting}
+                      className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      <XCircleIcon className="h-5 w-5 mr-2" />
+                      Reject Quotation
+                    </button>
+                  </>
+                ) : (
+                  <form onSubmit={handleRequestChanges} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Describe the changes you want
+                      </label>
+                      <textarea
+                        value={changeReason}
+                        onChange={(e) => setChangeReason(e.target.value)}
+                        className="w-full border rounded-lg p-3 h-32"
+                        placeholder="Please describe what changes you'd like to see..."
+                        required
+                      />
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowChangeForm(false)}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+                      >
+                        Send Request
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
-            {quotation.notes && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-1">Notes:</h4>
-                <p className="text-sm text-gray-600">{quotation.notes}</p>
+
+            {/* Status Messages */}
+            {isAccepted && (
+              <div className="bg-green-50 rounded-lg p-6 text-center">
+                <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                <h3 className="font-semibold text-green-800">Quotation Accepted</h3>
+                <p className="text-sm text-green-600 mt-1">
+                  You have accepted this quotation. The seller will contact you soon.
+                </p>
+              </div>
+            )}
+
+            {isRejected && (
+              <div className="bg-red-50 rounded-lg p-6 text-center">
+                <XCircleIcon className="h-12 w-12 text-red-500 mx-auto mb-2" />
+                <h3 className="font-semibold text-red-800">Quotation Rejected</h3>
+                <p className="text-sm text-red-600 mt-1">
+                  You have rejected this quotation.
+                </p>
+              </div>
+            )}
+
+            {changesRequested && (
+              <div className="bg-yellow-50 rounded-lg p-6 text-center">
+                <PencilIcon className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
+                <h3 className="font-semibold text-yellow-800">Changes Requested</h3>
+                <p className="text-sm text-yellow-600 mt-1">
+                  Your change request has been sent to the seller.
+                </p>
               </div>
             )}
           </div>
-        )}
-
-        {/* Actions for Accepted/Rejected State */}
-        {quotation.status === 'accepted' && (
-          <div className="px-8 py-4 bg-green-50 border-t border-green-200">
-            <div className="flex items-center text-green-800">
-              <CheckCircleIcon className="h-5 w-5 mr-2" />
-              <span>You have accepted this quotation. The seller will contact you for further steps.</span>
-            </div>
-          </div>
-        )}
-
-        {quotation.status === 'rejected' && (
-          <div className="px-8 py-4 bg-red-50 border-t border-red-200">
-            <div className="flex items-center text-red-800">
-              <XCircleIcon className="h-5 w-5 mr-2" />
-              <span>You have rejected this quotation.</span>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

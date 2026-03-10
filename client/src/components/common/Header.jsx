@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from './NotificationBell';
 import { 
   HomeIcon, 
   UserCircleIcon, 
@@ -79,12 +80,10 @@ const Header = () => {
           {/* Navigation */}
           <div className="flex items-center space-x-4">
             {/* Notifications */}
-            <Link to="/notifications" className="p-2 text-gray-600 hover:text-primary-600 relative">
-              <BellIcon className="h-6 w-6" />
-              <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
-                0
-              </span>
-            </Link>
+            <div className="flex items-center space-x-4">
+  <NotificationBell />
+  {/* ... other header items */}
+</div>
 
             {/* Chat */}
             <Link to="/chat" className="p-2 text-gray-600 hover:text-primary-600">

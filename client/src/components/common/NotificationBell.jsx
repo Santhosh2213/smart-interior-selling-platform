@@ -1,0 +1,210 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { BellIcon, CheckCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../../context/AuthContext';
+import { getNotifications, markNotificationAsRead } from '../../services/notificationService';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+
+const NotificationBell = () => {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchNotifications();
+      
+      // Set up polling every 30 seconds
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
+
+  const fetchNotifications = async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      setLoading(true);
+      const response = await getNotifications();
+      setNotifications(response.data || []);
+      setUnreadCount(response.unreadCount || 0);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      // Don't show toast for notification errors to avoid spam
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleNotificationClick = async (notification) => {
+    if (!notification.isRead) {
+      try {
+        await markNotificationAsRead(notification._id);
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        setNotifications(prev =>
+          prev.map(n => 
+            n._id === notification._id ? { ...n, isRead: true } : n
+          )
+        );
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
+    
+    if (notification.actionUrl) {
+      navigate(notification.actionUrl);
+      setShowDropdown(false);
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch(type) {
+      case 'DESIGN_SUBMITTED':
+        return '🎨';
+      case 'DESIGN_APPROVED':
+        return '✅';
+      case 'DESIGN_REJECTED':
+        return '❌';
+      case 'DESIGN_CHANGES_REQUESTED':
+        return '✏️';
+      case 'DESIGN_UPDATED':
+        return '🔄';
+      case 'QUOTATION_CREATED':
+        return '📄';
+      case 'QUOTATION_ACCEPTED':
+        return '💰';
+      case 'PROJECT_SUBMITTED':
+        return '📋';
+      default:
+        return '📢';
+    }
+  };
+
+  const formatTime = (date) => {
+    if (!date) return '';
+    const now = new Date();
+    const notifDate = new Date(date);
+    const diffMs = now - notifDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return notifDate.toLocaleDateString();
+  };
+
+  if (!isAuthenticated) {
+    return null; // Don't show notification bell if not authenticated
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setShowDropdown(!showDropdown)}
+        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+        aria-label="Notifications"
+      >
+        <BellIcon className="h-6 w-6" />
+        {unreadCount > 0 && (
+          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full min-w-[20px]">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {showDropdown && (
+        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-gray-900">Notifications</h3>
+              <button
+                onClick={() => setShowDropdown(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {loading ? (
+              <div className="p-4 text-center text-gray-500">Loading...</div>
+            ) : notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div
+                  key={notification._id}
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                    !notification.isRead ? 'bg-blue-50' : ''
+                  }`}
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 text-2xl">
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {notification.title}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-2">
+                        {formatTime(notification.createdAt)}
+                      </p>
+                    </div>
+                    {!notification.isRead && (
+                      <div className="flex-shrink-0">
+                        <span className="inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                <BellIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No notifications</p>
+              </div>
+            )}
+          </div>
+
+          {notifications.length > 0 && (
+            <div className="p-3 border-t border-gray-200 text-center">
+              <button
+                onClick={() => {
+                  navigate('/notifications');
+                  setShowDropdown(false);
+                }}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                View All
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NotificationBell;

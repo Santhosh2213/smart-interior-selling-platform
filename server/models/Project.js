@@ -17,7 +17,7 @@ const projectSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'pending', 'quoting', 'quoted', 'approved', 'rejected', 'completed', 'cancelled', 'PENDING_DESIGN', 'DESIGN_COMPLETED'],
+    enum: ['draft', 'pending', 'quoting', 'quoted', 'approved', 'rejected', 'completed', 'cancelled', 'PENDING_DESIGN', 'DESIGN_COMPLETED', 'DESIGN_APPROVED', 'DESIGN_REJECTED', 'CHANGES_REQUESTED'],
     default: 'draft'
   },
   measurementUnit: {
@@ -49,7 +49,20 @@ const projectSchema = new mongoose.Schema({
     sparse: true
   },
   
-  // Designer fields - UPDATED for better workflow
+  // Design tracking fields
+  currentDesignVersion: {
+    type: Number,
+    default: 0
+  },
+  designStatus: {
+    type: String,
+    enum: ['NO_DESIGN', 'DESIGN_IN_PROGRESS', 'DESIGN_SUBMITTED', 
+           'DESIGN_APPROVED', 'DESIGN_REJECTED', 'CHANGES_REQUESTED'],
+    default: 'NO_DESIGN'
+  },
+  lastDesignNotificationAt: Date,
+  
+  // Designer fields
   assignedDesigner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Designer'
@@ -66,7 +79,7 @@ const projectSchema = new mongoose.Schema({
   },
   designerReviewedAt: Date,
   
-  // Designer suggestions - FIXED SYNTAX
+  // Designer suggestions - for backward compatibility
   designerSuggestions: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'DesignerSuggestion'
@@ -148,5 +161,6 @@ projectSchema.index({ assignedDesigner: 1, status: 1 });
 projectSchema.index({ assignedSeller: 1, status: 1 });
 projectSchema.index({ status: 1, createdAt: -1 });
 projectSchema.index({ designSuggestionId: 1 });
+projectSchema.index({ designStatus: 1 });
 
 module.exports = mongoose.model('Project', projectSchema);

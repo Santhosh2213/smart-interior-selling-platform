@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'); // Add this line at the top!
 
 const recommendationSchema = new mongoose.Schema({
   areaId: {
@@ -18,7 +18,7 @@ const recommendationSchema = new mongoose.Schema({
   },
   unit: {
     type: String,
-    enum: ['sqft', 'sqm', 'pieces', 'boxes', 'liters', 'kg'],
+    enum: ['sqft', 'sqm', 'pieces', 'boxes', 'liters', 'kg', 'meters', 'feet', 'piece'],
     required: true
   },
   notes: {
@@ -31,6 +31,54 @@ const recommendationSchema = new mongoose.Schema({
   }
 }, { _id: true });
 
+const designImageSchema = new mongoose.Schema({
+  imageUrl: {
+    type: String,
+    required: true
+  },
+  publicId: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  uploadedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
+
+const changeRequestSchema = new mongoose.Schema({
+  requestedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  requestType: {
+    type: String,
+    enum: ['material_change', 'design_change', 'theme_change', 'other'],
+    default: 'design_change'
+  },
+  description: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'implemented', 'rejected'],
+    default: 'pending'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  implementedAt: Date,
+  implementedNotes: String
+});
+
 const designSuggestionSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -40,110 +88,143 @@ const designSuggestionSchema = new mongoose.Schema({
   },
   designerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Designer',
     required: true,
     index: true
   },
-  recommendations: [recommendationSchema],
-  
-  // Design notes and suggestions
-  designNotes: {
-    type: String,
-    trim: true,
-    maxlength: 2000
-  },
-  
-  // Overall design theme/style suggestion
-  suggestedTheme: {
-    type: String,
-    trim: true
-  },
-  
-  // Color scheme suggestions
-  colorScheme: {
-    primary: String,
-    secondary: String,
-    accent: String
-  },
-  
-  // Status tracking
-  status: {
-    type: String,
-    enum: ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REVISION_REQUESTED'],
-    default: 'DRAFT',
-    index: true
-  },
-  
-  // Version control for revisions
   version: {
     type: Number,
     default: 1
   },
   
-  // Reference to previous version (if revision)
+  // Main content
+  recommendations: [recommendationSchema],
+  designNotes: {
+    type: String,
+    trim: true,
+    maxlength: 5000
+  },
+  suggestedTheme: {
+    type: String,
+    trim: true
+  },
+  colorScheme: {
+    primary: String,
+    secondary: String,
+    accent: String
+  },
+  estimatedTimeline: {
+    designDays: { type: Number, default: 3 },
+    materialProcurementDays: { type: Number, default: 5 },
+    installationDays: { type: Number, default: 7 }
+  },
+  
+  // Designer uploaded images
+  designImages: [designImageSchema],
+  
+  // Status tracking
+  status: {
+    type: String,
+    enum: ['DRAFT', 'SUBMITTED', 'PENDING_CUSTOMER', 'CUSTOMER_REVIEWING', 
+           'CHANGES_REQUESTED', 'APPROVED', 'REJECTED', 'IMPLEMENTED'],
+    default: 'DRAFT'
+  },
+  
+  // Customer interaction
+  customerResponse: {
+    type: String,
+    enum: ['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'],
+    default: 'PENDING'
+  },
+  customerResponseAt: Date,
+  customerResponseNotes: String,
+  customerViewedAt: Date,
+  
+  // Change requests from customer
+  changeRequests: [changeRequestSchema],
+  
+  // Version history
   previousVersionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'DesignSuggestion'
   },
+  nextVersionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DesignSuggestion'
+  },
   
-  // Designer notes (internal)
+  // Timestamps
+  submittedAt: Date,
+  customerNotifiedAt: Date,
+  approvedAt: Date,
+  rejectedAt: Date,
+  
+  // Metadata
   internalNotes: {
     type: String,
     trim: true
-  },
-  
-  // Estimated timeline
-  estimatedTimeline: {
-    designDays: Number,
-    materialProcurementDays: Number,
-    installationDays: Number
-  },
-  
-  // Additional files/references
-  referenceImages: [{
-    url: String,
-    publicId: String,
-    description: String
-  }],
-  
-  // Metadata
-  submittedAt: Date,
-  reviewedAt: Date,
-  reviewedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  reviewNotes: String
+  }
 }, {
   timestamps: true
 });
 
-// Indexes for better query performance
+// Indexes
 designSuggestionSchema.index({ projectId: 1, status: 1 });
 designSuggestionSchema.index({ designerId: 1, createdAt: -1 });
 designSuggestionSchema.index({ status: 1, createdAt: -1 });
+designSuggestionSchema.index({ customerResponse: 1 });
 
-// Pre-save middleware to update timestamps
+// Pre-save middleware
 designSuggestionSchema.pre('save', function(next) {
   if (this.status === 'SUBMITTED' && !this.submittedAt) {
     this.submittedAt = new Date();
+    this.status = 'PENDING_CUSTOMER';
+    this.customerResponse = 'PENDING';
   }
+  
+  if (this.customerResponse === 'APPROVED' && !this.approvedAt) {
+    this.approvedAt = new Date();
+    this.status = 'APPROVED';
+  }
+  
+  if (this.customerResponse === 'REJECTED' && !this.rejectedAt) {
+    this.rejectedAt = new Date();
+    this.status = 'REJECTED';
+  }
+  
+  if (this.customerResponse === 'CHANGES_REQUESTED') {
+    this.status = 'CHANGES_REQUESTED';
+  }
+  
   next();
 });
 
-// Method to calculate total estimated cost
+// Methods
 designSuggestionSchema.methods.calculateTotalCost = function() {
   return this.recommendations.reduce((total, rec) => {
     return total + (rec.estimatedCost || 0);
   }, 0);
 };
 
-// Static method to find projects waiting for design
-designSuggestionSchema.statics.findPendingProjects = function() {
-  return this.find({ status: 'SUBMITTED' })
-    .populate('projectId')
-    .populate('designerId', 'name email')
-    .sort('-submittedAt');
+designSuggestionSchema.methods.addChangeRequest = function(userId, requestType, description) {
+  this.changeRequests.push({
+    requestedBy: userId,
+    requestType,
+    description,
+    status: 'pending'
+  });
+  this.status = 'CHANGES_REQUESTED';
+  this.customerResponse = 'CHANGES_REQUESTED';
+  this.customerResponseAt = new Date();
+};
+
+designSuggestionSchema.methods.implementChangeRequest = function(requestId, notes) {
+  const request = this.changeRequests.id(requestId);
+  if (request) {
+    request.status = 'implemented';
+    request.implementedAt = new Date();
+    request.implementedNotes = notes;
+  }
 };
 
 const DesignSuggestion = mongoose.model('DesignSuggestion', designSuggestionSchema);

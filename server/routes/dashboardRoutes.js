@@ -1,18 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 const {
   getSellerDashboard,
-  getDesignerDashboard,
-  getCustomerDashboard
+  getCustomerDashboard,
+  getDesignerDashboard
 } = require('../controllers/dashboardController');
 
-// All dashboard routes require authentication
-router.use(protect);
+// Seller dashboard
+router.get('/seller', protect, authorize('seller'), getSellerDashboard);
 
-// Role-specific dashboard routes
-router.get('/seller', getSellerDashboard);
-router.get('/designer', getDesignerDashboard);
-router.get('/customer', getCustomerDashboard);
+// Customer dashboard
+router.get('/customer', protect, authorize('customer'), getCustomerDashboard);
+
+// Designer dashboard
+router.get('/designer', protect, authorize('designer'), getDesignerDashboard);
 
 module.exports = router;
