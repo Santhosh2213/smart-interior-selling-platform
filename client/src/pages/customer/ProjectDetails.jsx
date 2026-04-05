@@ -4,14 +4,16 @@ import {
   getProjectById, 
   submitProject,
   addMeasurement,
-  uploadProjectImages 
+  uploadProjectImages,
+  deleteProject
 } from '../../services/projectService';
 import { 
   ArrowLeftIcon,
   PlusIcon,
   PhotoIcon,
   HomeIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import Loader from '../../components/common/Loader';
 import toast from 'react-hot-toast';
@@ -25,6 +27,8 @@ const ProjectDetails = () => {
   const [showMeasurementForm, setShowMeasurementForm] = useState(false);
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [measurementData, setMeasurementData] = useState({
     areaName: '',
     length: '',
@@ -45,7 +49,6 @@ const ProjectDetails = () => {
     try {
       setLoading(true);
       const response = await getProjectById(id);
-      // Safely access data with optional chaining
       setProject(response?.data || null);
     } catch (error) {
       console.error('Error loading project:', error);
@@ -64,7 +67,6 @@ const ProjectDetails = () => {
   const handleAddMeasurement = async (e) => {
     e.preventDefault();
     
-    // Validate inputs with safe checks
     if (!measurementData.areaName?.trim()) {
       toast.error('Please enter an area name');
       return;
@@ -93,7 +95,7 @@ const ProjectDetails = () => {
       toast.success('Measurement added successfully');
       setMeasurementData({ areaName: '', length: '', width: '', unit: 'feet' });
       setShowMeasurementForm(false);
-      loadProject(); // Reload project data
+      loadProject();
     } catch (error) {
       console.error('Error adding measurement:', error);
       toast.error(error.response?.data?.error || 'Failed to add measurement');
@@ -123,7 +125,7 @@ const ProjectDetails = () => {
       toast.success('Images uploaded successfully');
       setSelectedFiles([]);
       setShowImageUpload(false);
-      loadProject(); // Reload project data
+      loadProject();
     } catch (error) {
       console.error('Error uploading images:', error);
       toast.error('Failed to upload images');
@@ -133,7 +135,6 @@ const ProjectDetails = () => {
   };
 
   const handleSubmitProject = async () => {
-    // Safe checks with optional chaining
     const measurements = project?.measurements || [];
     const images = project?.images || [];
     
@@ -157,13 +158,28 @@ const ProjectDetails = () => {
       console.log('Submit response:', response);
       
       toast.success('Project submitted for review!');
-      loadProject(); // Reload to update status
+      loadProject();
     } catch (error) {
       console.error('Error submitting project:', error);
       console.error('Error response:', error.response?.data);
       toast.error(error.response?.data?.error || 'Failed to submit project');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    setDeleting(true);
+    try {
+      await deleteProject(id);
+      toast.success('Project deleted successfully');
+      navigate('/customer/dashboard');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete project');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -197,20 +213,33 @@ const ProjectDetails = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center mb-6">
-          <button
-            onClick={() => navigate('/customer/dashboard')}
-            className="mr-4 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeftIcon className="h-5 w-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{project.title || 'Untitled Project'}</h1>
-            <p className="text-gray-600">
-              Status: <span className="capitalize">{project.status || 'draft'}</span>
-            </p>
+        {/* Header with Delete Button */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center">
+            <button
+              onClick={() => navigate('/customer/dashboard')}
+              className="mr-4 text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeftIcon className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{project.title || 'Untitled Project'}</h1>
+              <p className="text-gray-600">
+                Status: <span className="capitalize">{project.status || 'draft'}</span>
+              </p>
+            </div>
           </div>
+          
+          {/* Delete Button - Only show for draft projects */}
+          {canEdit && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="text-red-600 hover:text-red-700 flex items-center gap-2 px-4 py-2 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <TrashIcon className="h-5 w-5" />
+              Delete Project
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -434,6 +463,45 @@ const ProjectDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <TrashIcon className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Project</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Are you sure you want to delete "{project.title}"? This action cannot be undone.
+              </p>
+              <div className="flex justify-center space-x-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteProject}
+                  disabled={deleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete Project'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

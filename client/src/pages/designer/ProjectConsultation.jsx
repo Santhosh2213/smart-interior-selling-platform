@@ -61,6 +61,8 @@ const ProjectConsultation = () => {
   // Design images state
   const [designImages, setDesignImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -126,7 +128,7 @@ const ProjectConsultation = () => {
       {
         areaId: '',
         materialId: '',
-        quantity: 0,
+        quantity: 1,
         unit: 'sqft',
         notes: '',
         estimatedCost: 0
@@ -197,7 +199,7 @@ const ProjectConsultation = () => {
     }
   };
 
-  // Upload design images
+  // Upload design images with progress simulation
   const handleUploadImages = async () => {
     if (selectedFiles.length === 0) {
       toast.error('Please select images to upload');
@@ -205,40 +207,54 @@ const ProjectConsultation = () => {
     }
 
     setUploadingImages(true);
+    setUploadProgress(0);
+    setUploadStatus('Preparing files...');
+    
     const formData = new FormData();
     selectedFiles.forEach(file => {
       formData.append('images', file);
     });
 
+    // Simulate upload progress
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     try {
+      setUploadStatus('Uploading to server...');
       const uploadedImages = await uploadDesignImages(formData);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setUploadStatus('Complete!');
+      
       setDesignImages(prev => [...prev, ...uploadedImages]);
       setSelectedFiles([]);
       setImagePreview(null);
       toast.success(`${uploadedImages.length} images uploaded successfully`);
+      
+      // Reset progress after 1 second
+      setTimeout(() => {
+        setUploadProgress(0);
+        setUploadStatus('');
+      }, 1000);
     } catch (error) {
       console.error('Error uploading images:', error);
+      setUploadProgress(0);
+      setUploadStatus('Upload failed');
       toast.error('Failed to upload images');
     } finally {
-      setUploadingImages(false);
+      setTimeout(() => {
+        setUploadingImages(false);
+      }, 500);
     }
   };
-
-// In ProjectConsultation.jsx, add this function
-const handleSaveAIImageToDesign = (imageUrl) => {
-  // Add the generated image to designImages array
-  setDesignImages(prev => [
-    ...prev,
-    {
-      imageUrl: imageUrl,
-      publicId: `ai-generated-${Date.now()}`,
-      description: 'AI Generated Design',
-      uploadedAt: new Date()
-    }
-  ]);
-  toast.success('AI image added to design images!');
-  setActiveTab('images'); // Switch to images tab to show it
-};
 
   // Remove design image
   const handleRemoveDesignImage = (index) => {
@@ -312,6 +328,20 @@ const handleSaveAIImageToDesign = (imageUrl) => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSaveAIImageToDesign = (imageUrl) => {
+    setDesignImages(prev => [
+      ...prev,
+      {
+        imageUrl: imageUrl,
+        publicId: `ai-generated-${Date.now()}`,
+        description: 'AI Generated Design',
+        uploadedAt: new Date()
+      }
+    ]);
+    toast.success('AI image added to design images!');
+    setActiveTab('images');
   };
 
   if (loading) {
@@ -432,7 +462,7 @@ const handleSaveAIImageToDesign = (imageUrl) => {
             >
               Project Details
             </button>
-            <button
+            {/* <button
               onClick={() => setActiveTab('sketch-ai')}
               className={`pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1 transition-colors ${
                 activeTab === 'sketch-ai'
@@ -441,7 +471,7 @@ const handleSaveAIImageToDesign = (imageUrl) => {
               }`}
             >
               <span>✏️</span> Sketch-to-Real
-            </button>
+            </button> */}
             <button
               onClick={() => setActiveTab('ai-generator')}
               className={`pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1 transition-colors ${
@@ -716,7 +746,24 @@ const handleSaveAIImageToDesign = (imageUrl) => {
                 </label>
               </div>
 
-              {selectedFiles.length > 0 && (
+              {/* Upload Progress Bar */}
+              {uploadingImages && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-700">{uploadStatus}</span>
+                    <span className="text-sm font-medium text-blue-700">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Files Preview */}
+              {selectedFiles.length > 0 && !uploadingImages && (
                 <div className="mt-4">
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Files ({selectedFiles.length})</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -739,16 +786,16 @@ const handleSaveAIImageToDesign = (imageUrl) => {
                   <button
                     onClick={handleUploadImages}
                     disabled={uploadingImages}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                   >
                     {uploadingImages ? (
                       <>
-                        <Loader size="sm" />
-                        <span className="ml-2">Uploading...</span>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        Uploading...
                       </>
                     ) : (
                       <>
-                        <CloudArrowUpIcon className="h-5 w-5 mr-2" />
+                        <CloudArrowUpIcon className="h-5 w-5" />
                         Upload {selectedFiles.length} Images
                       </>
                     )}
@@ -756,6 +803,7 @@ const handleSaveAIImageToDesign = (imageUrl) => {
                 </div>
               )}
 
+              {/* Uploaded Design Images */}
               {designImages.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Uploaded Design Images ({designImages.length})</h3>
@@ -774,6 +822,11 @@ const handleSaveAIImageToDesign = (imageUrl) => {
                         >
                           <XMarkIcon className="h-4 w-4" />
                         </button>
+                        {image.description && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg">
+                            {image.description}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -887,7 +940,7 @@ const handleSaveAIImageToDesign = (imageUrl) => {
                               onChange={(e) => handleRecommendationChange(index, 'quantity', parseFloat(e.target.value))}
                               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               min="0"
-                              step="0.01"
+                              step="1"
                               required
                             />
                           </div>
@@ -957,7 +1010,7 @@ const handleSaveAIImageToDesign = (imageUrl) => {
           </div>
         )}
 
-        {/* Tab Content - Sketch to Real (Gemini) */}
+        {/* Tab Content - Sketch to Real (Gemini)
         {activeTab === 'sketch-ai' && (
           <div className="mt-2">
             <SketchToRealStudio
@@ -972,7 +1025,7 @@ const handleSaveAIImageToDesign = (imageUrl) => {
               }}
             />
           </div>
-        )}
+        )} */}
 
         {/* Tab Content - AI Image Generator (GhostBot/Infip) */}
         {activeTab === 'ai-generator' && (
@@ -981,8 +1034,8 @@ const handleSaveAIImageToDesign = (imageUrl) => {
               project={project}
               onImageGenerated={(imageUrl) => {
                 console.log('Generated image:', imageUrl);
-                toast.success('Image generated! You can download it.');
               }}
+              onSaveToDesignImages={handleSaveAIImageToDesign}
             />
           </div>
         )}
