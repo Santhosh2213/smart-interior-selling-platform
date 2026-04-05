@@ -7,6 +7,8 @@ import {
   uploadDesignImages 
 } from '../../services/designerService';
 import Loader from '../../components/common/Loader';
+import SketchToRealStudio from './SketchToRealStudio';
+import AIImageGenerator from '../../components/ai/AIImageGenerator';
 import { 
   ArrowLeftIcon, 
   PhotoIcon,
@@ -24,7 +26,8 @@ import {
   CurrencyRupeeIcon,
   CloudArrowUpIcon,
   XMarkIcon,
-  EyeIcon
+  EyeIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -221,6 +224,22 @@ const ProjectConsultation = () => {
     }
   };
 
+// In ProjectConsultation.jsx, add this function
+const handleSaveAIImageToDesign = (imageUrl) => {
+  // Add the generated image to designImages array
+  setDesignImages(prev => [
+    ...prev,
+    {
+      imageUrl: imageUrl,
+      publicId: `ai-generated-${Date.now()}`,
+      description: 'AI Generated Design',
+      uploadedAt: new Date()
+    }
+  ]);
+  toast.success('AI image added to design images!');
+  setActiveTab('images'); // Switch to images tab to show it
+};
+
   // Remove design image
   const handleRemoveDesignImage = (index) => {
     setDesignImages(prev => prev.filter((_, i) => i !== index));
@@ -272,7 +291,7 @@ const ProjectConsultation = () => {
         suggestedTheme,
         colorScheme,
         estimatedTimeline,
-        designImages, // Include uploaded design images
+        designImages,
         status
       };
       
@@ -372,10 +391,10 @@ const ProjectConsultation = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
-          <nav className="flex space-x-8">
+          <nav className="flex flex-wrap gap-2 md:gap-4">
             <button
               onClick={() => setActiveTab('recommendations')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'recommendations'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -385,7 +404,7 @@ const ProjectConsultation = () => {
             </button>
             <button
               onClick={() => setActiveTab('design')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'design'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -395,7 +414,7 @@ const ProjectConsultation = () => {
             </button>
             <button
               onClick={() => setActiveTab('images')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'images'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -405,7 +424,7 @@ const ProjectConsultation = () => {
             </button>
             <button
               onClick={() => setActiveTab('project-details')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'project-details'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -413,107 +432,122 @@ const ProjectConsultation = () => {
             >
               Project Details
             </button>
+            <button
+              onClick={() => setActiveTab('sketch-ai')}
+              className={`pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1 transition-colors ${
+                activeTab === 'sketch-ai'
+                  ? 'border-violet-500 text-violet-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <span>✏️</span> Sketch-to-Real
+            </button>
+            <button
+              onClick={() => setActiveTab('ai-generator')}
+              className={`pb-3 px-2 border-b-2 font-medium text-sm flex items-center gap-1 transition-colors ${
+                activeTab === 'ai-generator'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <SparklesIcon className="h-4 w-4" />
+              AI Image Generator
+            </button>
           </nav>
         </div>
 
-
-
-{activeTab === 'project-details' && (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    {/* Customer Info */}
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-lg font-semibold mb-4 flex items-center">
-        <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
-        Customer Details
-      </h2>
-      <div className="space-y-3">
-        <div className="flex items-center">
-          <UserIcon className="h-4 w-4 text-gray-400 mr-3" />
-          <span className="font-medium">{project.customerName || 'N/A'}</span>
-        </div>
-        {project.customerEmail && (
-          <div className="flex items-center">
-            <EnvelopeIcon className="h-4 w-4 text-gray-400 mr-3" />
-            <span>{project.customerEmail}</span>
-          </div>
-        )}
-        {project.customerPhone && (
-          <div className="flex items-center">
-            <PhoneIcon className="h-4 w-4 text-gray-400 mr-3" />
-            <span>{project.customerPhone}</span>
-          </div>
-        )}
-        <div className="flex items-center text-sm text-gray-500">
-          <CalendarIcon className="h-4 w-4 mr-3" />
-          <span>Submitted: {new Date(project.createdAt).toLocaleDateString()}</span>
-        </div>
-      </div>
-    </div>
-
-    {/* Measurements */}
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-lg font-semibold mb-4 flex items-center">
-        <HomeIcon className="h-5 w-5 mr-2 text-blue-500" />
-        Measurements ({project.measurements?.length || 0})
-      </h2>
-      {project.measurements && project.measurements.length > 0 ? (
-        <div className="space-y-4">
-          {project.measurements.map((m, index) => (
-            <div key={m._id || index} className="border-b last:border-0 pb-3 last:pb-0">
-              <p className="font-medium">{m.areaName || `Area ${index + 1}`}</p>
-              <p className="text-sm text-gray-600 mt-1">
-                {m.length} × {m.width} {project.measurementUnit}<br />
-                Area: {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-gray-500 text-center py-4">No measurements added</p>
-      )}
-    </div>
-
-    {/* Customer Photos - Full width below */}
-    {project.images && project.images.length > 0 && (
-      <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center">
-          <PhotoIcon className="h-5 w-5 mr-2 text-blue-500" />
-          Customer Photos ({project.images.length})
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {project.images.map((image, index) => (
-            <div 
-              key={image._id || index}
-              className="relative cursor-pointer group aspect-square"
-              onClick={() => setSelectedImage(image.imageUrl)}
-            >
-              <img 
-                src={image.imageUrl} 
-                alt={`Customer photo ${index + 1}`}
-                className="w-full h-full object-cover rounded-lg"
-                onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
-                }}
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center">
-                <PhotoIcon className="h-8 w-8 text-white opacity-0 group-hover:opacity-100" />
-              </div>
-              {image.annotations && image.annotations.length > 0 && (
-                <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                  {image.annotations.length} annotations
+        {/* Tab Content - Project Details */}
+        {activeTab === 'project-details' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Customer Info */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Customer Details
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <UserIcon className="h-4 w-4 text-gray-400 mr-3" />
+                  <span className="font-medium">{project.customerName || 'N/A'}</span>
                 </div>
+                {project.customerEmail && (
+                  <div className="flex items-center">
+                    <EnvelopeIcon className="h-4 w-4 text-gray-400 mr-3" />
+                    <span>{project.customerEmail}</span>
+                  </div>
+                )}
+                {project.customerPhone && (
+                  <div className="flex items-center">
+                    <PhoneIcon className="h-4 w-4 text-gray-400 mr-3" />
+                    <span>{project.customerPhone}</span>
+                  </div>
+                )}
+                <div className="flex items-center text-sm text-gray-500">
+                  <CalendarIcon className="h-4 w-4 mr-3" />
+                  <span>Submitted: {new Date(project.createdAt).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Measurements */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <HomeIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Measurements ({project.measurements?.length || 0})
+              </h2>
+              {project.measurements && project.measurements.length > 0 ? (
+                <div className="space-y-4">
+                  {project.measurements.map((m, index) => (
+                    <div key={m._id || index} className="border-b last:border-0 pb-3 last:pb-0">
+                      <p className="font-medium">{m.areaName || `Area ${index + 1}`}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {m.length} × {m.width} {project.measurementUnit}<br />
+                        Area: {(m.areaSqFt || m.area || 0).toFixed(2)} sq.{project.measurementUnit}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No measurements added</p>
               )}
             </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-)}
 
+            {/* Customer Photos */}
+            {project.images && project.images.length > 0 && (
+              <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                <h2 className="text-lg font-semibold mb-4 flex items-center">
+                  <PhotoIcon className="h-5 w-5 mr-2 text-blue-500" />
+                  Customer Photos ({project.images.length})
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {project.images.map((image, index) => (
+                    <div 
+                      key={image._id || index}
+                      className="relative cursor-pointer group aspect-square"
+                      onClick={() => setSelectedImage(image.imageUrl)}
+                    >
+                      <img 
+                        src={image.imageUrl} 
+                        alt={`Customer photo ${index + 1}`}
+                        className="w-full h-full object-cover rounded-lg"
+                        onError={(e) => {
+                          e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center">
+                        <PhotoIcon className="h-8 w-8 text-white opacity-0 group-hover:opacity-100" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab Content - Design & Theme */}
         {activeTab === 'design' && (
           <div className="space-y-6">
-            {/* Design Notes */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
@@ -527,7 +561,6 @@ const ProjectConsultation = () => {
               />
             </div>
 
-            {/* Theme & Color Scheme */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <PaintBrushIcon className="h-5 w-5 mr-2 text-blue-500" />
@@ -564,7 +597,6 @@ const ProjectConsultation = () => {
                       value={colorScheme.primary}
                       onChange={(e) => setColorScheme({...colorScheme, primary: e.target.value})}
                       className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="#3B82F6"
                     />
                   </div>
                 </div>
@@ -584,7 +616,6 @@ const ProjectConsultation = () => {
                       value={colorScheme.secondary}
                       onChange={(e) => setColorScheme({...colorScheme, secondary: e.target.value})}
                       className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="#10B981"
                     />
                   </div>
                 </div>
@@ -604,14 +635,12 @@ const ProjectConsultation = () => {
                       value={colorScheme.accent}
                       onChange={(e) => setColorScheme({...colorScheme, accent: e.target.value})}
                       className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="#F59E0B"
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Timeline */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <ClockIcon className="h-5 w-5 mr-2 text-blue-500" />
@@ -659,9 +688,9 @@ const ProjectConsultation = () => {
           </div>
         )}
 
+        {/* Tab Content - Design Images */}
         {activeTab === 'images' && (
           <div className="space-y-6">
-            {/* Upload Design Images */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <PhotoIcon className="h-5 w-5 mr-2 text-blue-500" />
@@ -687,7 +716,6 @@ const ProjectConsultation = () => {
                 </label>
               </div>
 
-              {/* Selected Files Preview */}
               {selectedFiles.length > 0 && (
                 <div className="mt-4">
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Files ({selectedFiles.length})</h3>
@@ -728,7 +756,6 @@ const ProjectConsultation = () => {
                 </div>
               )}
 
-              {/* Uploaded Design Images */}
               {designImages.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Uploaded Design Images ({designImages.length})</h3>
@@ -747,11 +774,6 @@ const ProjectConsultation = () => {
                         >
                           <XMarkIcon className="h-4 w-4" />
                         </button>
-                        {image.description && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg">
-                            {image.description}
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -761,9 +783,9 @@ const ProjectConsultation = () => {
           </div>
         )}
 
+        {/* Tab Content - Recommendations */}
         {activeTab === 'recommendations' && (
           <div className="space-y-6">
-            {/* Recommendations */}
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold flex items-center">
@@ -816,7 +838,6 @@ const ProjectConsultation = () => {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          {/* Area Selection */}
                           <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">
                               Select Area *
@@ -836,7 +857,6 @@ const ProjectConsultation = () => {
                             </select>
                           </div>
 
-                          {/* Material Selection */}
                           <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">
                               Select Material *
@@ -856,7 +876,6 @@ const ProjectConsultation = () => {
                             </select>
                           </div>
 
-                          {/* Quantity */}
                           <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">
                               Quantity *
@@ -873,7 +892,6 @@ const ProjectConsultation = () => {
                             />
                           </div>
 
-                          {/* Unit */}
                           <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">
                               Unit
@@ -893,7 +911,6 @@ const ProjectConsultation = () => {
                           </div>
                         </div>
 
-                        {/* Notes */}
                         <div className="mt-4">
                           <label className="block text-xs font-medium text-gray-500 mb-1">
                             Notes (optional)
@@ -907,7 +924,6 @@ const ProjectConsultation = () => {
                           />
                         </div>
 
-                        {/* Estimated Cost */}
                         {rec.estimatedCost > 0 && (
                           <div className="mt-4 bg-blue-50 p-3 rounded-lg flex items-center justify-between">
                             <div className="flex items-center text-blue-700">
@@ -924,7 +940,6 @@ const ProjectConsultation = () => {
               )}
             </div>
 
-            {/* Total Cost Summary */}
             {recommendations.length > 0 && totalCost > 0 && (
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
                 <div className="flex items-center justify-between">
@@ -939,6 +954,36 @@ const ProjectConsultation = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab Content - Sketch to Real (Gemini) */}
+        {activeTab === 'sketch-ai' && (
+          <div className="mt-2">
+            <SketchToRealStudio
+              project={project}
+              onSaveToDesign={(aiData) => {
+                if (aiData.designNotes) {
+                  setDesignNotes(prev => prev + (prev ? '\n\n' : '') + '--- AI Visualization Notes ---\n' + aiData.designNotes);
+                }
+                if (aiData.suggestedTheme) setSuggestedTheme(aiData.suggestedTheme);
+                toast.success('AI visualization data applied to your design!');
+                setActiveTab('design');
+              }}
+            />
+          </div>
+        )}
+
+        {/* Tab Content - AI Image Generator (GhostBot/Infip) */}
+        {activeTab === 'ai-generator' && (
+          <div className="mt-2">
+            <AIImageGenerator
+              project={project}
+              onImageGenerated={(imageUrl) => {
+                console.log('Generated image:', imageUrl);
+                toast.success('Image generated! You can download it.');
+              }}
+            />
           </div>
         )}
 

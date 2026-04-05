@@ -2,17 +2,15 @@ const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { cloudinary } = require('../config/cloudinary');
 
-// Configure storage for designer images
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'smart-seller/designer-images', // Different folder for designer images
+    folder: 'design-images',
     allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
     transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
   }
 });
 
-// Create multer upload instance for designer images
 const upload = multer({ 
   storage: storage,
   limits: {
