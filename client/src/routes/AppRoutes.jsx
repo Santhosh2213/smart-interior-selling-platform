@@ -2,6 +2,9 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Loader from '../components/common/Loader';
+import NotFound from '../pages/common/NotFound';
+
+
 
 // Public Pages
 import LandingPage from '../pages/auth/LandingPage';
@@ -66,6 +69,7 @@ const AppRoutes = () => {
       <Route path="/seller/login" element={<PublicRoute><SellerLogin /></PublicRoute>} />
       <Route path="/designer/login" element={<PublicRoute><DesignerLogin /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+      <Route path="/src/pages/common/NotFound" element={<NotFound />} />
 
       {/* Customer Routes */}
       <Route path="/customer">

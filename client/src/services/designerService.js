@@ -37,7 +37,6 @@ export const uploadDesignImages = async (formData) => {
   }
 };
 
-
 // Create or update design suggestion
 export const createDesignSuggestion = async (suggestionData) => {
   try {
@@ -72,12 +71,62 @@ export const getMaterials = async (category = '') => {
   }
 };
 
+// ─── NewaEC Sketch-to-Real ────────────────────────────────────────────────────
+
+/**
+ * Save an AI-generated visualization result to a project's design suggestion.
+ * Called after the designer clicks "Save to Design Suggestion" in the Studio.
+ *
+ * @param {string} projectId
+ * @param {object} aiVisualization  - Full parsed result from the Anthropic API
+ * @param {string} designNotes      - Designer notes derived from AI output
+ * @param {string} suggestedTheme   - e.g. "Modern Minimalist"
+ */
+export const saveSketchToRealResult = async ({
+  projectId,
+  aiVisualization,
+  designNotes,
+  suggestedTheme,
+}) => {
+  try {
+    const response = await api.post('/designer/sketch-to-real/save', {
+      projectId,
+      aiVisualization,
+      designNotes,
+      suggestedTheme,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error saving sketch-to-real result:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch all NewaEC-generated visualizations saved for a project.
+ * Useful for showing a history of AI renders on the consultation page.
+ *
+ * @param {string} projectId
+ */
+export const getSketchToRealResults = async (projectId) => {
+  try {
+    const response = await api.get(`/designer/sketch-to-real/${projectId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching sketch-to-real results:', error);
+    throw error;
+  }
+};
+
 const designerService = {
   getDesignerQueue,
   getProjectForDesign,
   createDesignSuggestion,
   getSuggestionHistory,
-  getMaterials
+  getMaterials,
+  uploadDesignImages,
+  saveSketchToRealResult,
+  getSketchToRealResults,
 };
 
 export default designerService;

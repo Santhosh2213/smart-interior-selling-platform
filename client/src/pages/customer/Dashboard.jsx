@@ -278,91 +278,6 @@ const CustomerDashboard = () => {
           </div>
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Project Status Pie Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center">
-              <ChartBarIcon className="h-5 w-5 mr-2 text-blue-500" />
-              Project Status Distribution
-            </h2>
-            {statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-gray-500 text-center py-12">No project data available</p>
-            )}
-          </div>
-
-          {/* Timeline Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold flex items-center">
-                <CalendarIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Project Timeline
-              </h2>
-              <select
-                value={selectedTimeRange}
-                onChange={(e) => setSelectedTimeRange(e.target.value)}
-                className="text-sm border rounded-lg px-2 py-1"
-              >
-                <option value="month">Last 6 Months</option>
-                <option value="year">Last Year</option>
-              </select>
-            </div>
-            {timelineData.length > 0 && timelineData.some(d => d.created > 0 || d.approved > 0) ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={timelineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="created" stroke="#3B82F6" name="Created" />
-                  <Line type="monotone" dataKey="approved" stroke="#10B981" name="Approved" />
-                  <Line type="monotone" dataKey="quoted" stroke="#8B5CF6" name="Quoted" />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-gray-500 text-center py-12">No timeline data available</p>
-            )}
-          </div>
-        </div>
-
-        {/* Progress Bar Chart */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center">
-            <ArrowTrendingUpIcon className="h-5 w-5 mr-2 text-blue-500" />
-            Project Progress
-          </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={progressData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="stage" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="count" fill="#3B82F6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
         {/* Projects Grid with Images */}
         <h2 className="text-xl font-bold mb-4">Your Projects</h2>
         {projects.length === 0 ? (
@@ -489,6 +404,93 @@ const CustomerDashboard = () => {
             })}
           </div>
         )}
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Project Status Pie Chart */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center">
+              <ChartBarIcon className="h-5 w-5 mr-2 text-blue-500" />
+              Project Status Distribution
+            </h2>
+            {statusData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-gray-500 text-center py-12">No project data available</p>
+            )}
+          </div>
+
+          {/* Timeline Chart */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                <CalendarIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Project Timeline
+              </h2>
+              <select
+                value={selectedTimeRange}
+                onChange={(e) => setSelectedTimeRange(e.target.value)}
+                className="text-sm border rounded-lg px-2 py-1"
+              >
+                <option value="month">Last 6 Months</option>
+                <option value="year">Last Year</option>
+              </select>
+            </div>
+            {timelineData.length > 0 && timelineData.some(d => d.created > 0 || d.approved > 0) ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={timelineData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="created" stroke="#3B82F6" name="Created" />
+                  <Line type="monotone" dataKey="approved" stroke="#10B981" name="Approved" />
+                  <Line type="monotone" dataKey="quoted" stroke="#8B5CF6" name="Quoted" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-gray-500 text-center py-12">No timeline data available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Progress Bar Chart */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <ArrowTrendingUpIcon className="h-5 w-5 mr-2 text-blue-500" />
+            Project Progress
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={progressData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="stage" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#3B82F6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        
 
         {/* Recent Activity Section */}
         {recentActivity.length > 0 && (
