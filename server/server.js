@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const http = require('http');
 const { Server } = require('socket.io');
+const cors = require('cors');
+
 
 dotenv.config();
 
@@ -55,6 +57,32 @@ io.use(async (socket, next) => {
     next(new Error('Authentication failed'));
   }
 });
+
+// Allowed origins for CORS
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://smart-interior-selling-platform.vercel.app',
+  'https://smart-interior-selling-platform-git-main-santhosh-kumar1.vercel.app',
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_2
+].filter(Boolean);
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 io.on('connection', (socket) => {
   const { id: userId, name, role } = socket.user;
