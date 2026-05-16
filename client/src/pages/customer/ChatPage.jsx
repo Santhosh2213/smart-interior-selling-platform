@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { chatService } from '../../services/chatService';
+import  chatService  from '../../services/chatService';
 import { projectService } from '../../services/projectService';
 import { 
   ArrowLeftIcon, 

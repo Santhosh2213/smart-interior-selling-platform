@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose');  // ← Add this
 
 const sellerSchema = new mongoose.Schema({
   userId: {

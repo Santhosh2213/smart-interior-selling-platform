@@ -1,58 +1,48 @@
 import axios from 'axios';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: `${API_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true
 });
 
-// Request interceptor to add token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    console.log('API Request - Token present:', !!token);
-    
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+// Add this for multipart/form-data uploads
+api.upload = axios.create({
+  baseURL: `${API_URL}/api`,
+  headers: {
+    'Content-Type': 'multipart/form-data',
   },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+  withCredentials: true
+});
 
-// Response interceptor to handle 401 errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error.response?.status, error.config?.url);
-    
-    if (error.response?.status === 401) {
-      console.log('401 Unauthorized - Clearing token and redirecting');
-      
-      // Clear local storage
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
-      // Only redirect if not already on login page
-      if (!window.location.pathname.includes('/login')) {
-        // Determine which login page to redirect to
-        const currentPath = window.location.pathname;
-        if (currentPath.includes('/seller')) {
-          window.location.href = '/seller/login';
-        } else if (currentPath.includes('/designer')) {
-          window.location.href = '/designer/login';
-        } else if (currentPath.includes('/customer')) {
-          window.location.href = '/customer/login';
-        } else {
-          window.location.href = '/';
-        }
-      }
-    }
-    return Promise.reject(error);
+// Request interceptor for both instances
+const authInterceptor = (config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+};
+
+api.interceptors.request.use(authInterceptor);
+api.upload.interceptors.request.use(authInterceptor);
+
+// Response interceptor (same for both)
+const responseInterceptor = (response) => response;
+const errorInterceptor = (error) => {
+  console.error('API Error:', error.response?.status, error.config?.url);
+  if (error.response?.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+  return Promise.reject(error);
+};
+
+api.interceptors.response.use(responseInterceptor, errorInterceptor);
+api.upload.interceptors.response.use(responseInterceptor, errorInterceptor);
 
 export default api;

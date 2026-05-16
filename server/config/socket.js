@@ -1,11 +1,12 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Chat = require('../models/Chat');
+const Notification = require('../models/Notification');
 
-// Store online users
-const onlineUsers = new Map(); // userId -> { socketId, userData }
+// Store online users: userId -> { socketId, userData }
+const onlineUsers = new Map();
 
-// Initialize Socket.IO
 const initializeSocket = (server) => {
   const io = new Server(server, {
     cors: {
@@ -13,270 +14,187 @@ const initializeSocket = (server) => {
       credentials: true,
       methods: ['GET', 'POST']
     },
-    // Connection settings
     pingTimeout: 60000,
     pingInterval: 25000
   });
 
-  // Authentication middleware
+  // ─── JWT Authentication Middleware ───────────────────────────────────────
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-      
-      if (!token) {
-        return next(new Error('Authentication token missing'));
-      }
+      if (!token) return next(new Error('Authentication token missing'));
 
-      // Verify JWT token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id).select('-password');
-      
-      if (!user) {
-        return next(new Error('User not found'));
-      }
+      if (!user) return next(new Error('User not found'));
 
-      // Attach user data to socket
       socket.user = {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role
       };
-      
       next();
     } catch (error) {
-      console.error('Socket authentication error:', error);
+      console.error('Socket auth error:', error.message);
       next(new Error('Authentication failed'));
     }
   });
 
-  // Handle connections
+  // ─── Connection Handler ───────────────────────────────────────────────────
   io.on('connection', (socket) => {
-    console.log(`🔌 User connected: ${socket.user.name} (${socket.id})`);
-    
-    // Add to online users
-    onlineUsers.set(socket.user.id, {
+    const { id: userId, name, role } = socket.user;
+    console.log(`🔌 Connected: ${name} [${role}] (${socket.id})`);
+
+    // Track online user
+    onlineUsers.set(userId, {
       socketId: socket.id,
-      userId: socket.user.id,
-      name: socket.user.name,
-      role: socket.user.role,
+      userId,
+      name,
+      role,
       connectedAt: new Date()
     });
 
-    // Join user to their personal room
-    socket.join(`user:${socket.user.id}`);
-    
-    // Join role-based room
-    socket.join(`role:${socket.user.role}`);
+    // Personal + role rooms
+    socket.join(`user:${userId}`);
+    socket.join(`role:${role}`);
 
-    // Broadcast online status to relevant users
-    broadcastOnlineStatus(io, socket);
+    // Broadcast this user's online status
+    socket.broadcast.emit('user-online', { userId, name, role });
 
-    // Handle private messages
+    // Send current online users list to the newly connected socket
+    socket.emit('online-users', Array.from(onlineUsers.values()).map(u => ({
+      userId: u.userId,
+      name: u.name,
+      role: u.role
+    })));
+
+    // ── Join a project chat room ──────────────────────────────────────────
+    socket.on('join-project', ({ projectId }) => {
+      socket.join(`project:${projectId}`);
+      console.log(`${name} joined project room: ${projectId}`);
+    });
+
+    socket.on('leave-project', ({ projectId }) => {
+      socket.leave(`project:${projectId}`);
+    });
+
+    // ── Private message (persisted to DB) ────────────────────────────────
     socket.on('private-message', async (data) => {
-      await handlePrivateMessage(io, socket, data);
+      try {
+        const { recipientId, content, projectId } = data;
+        if (!recipientId || !content?.trim()) return;
+
+        // Upsert the Chat document
+        let chat = await Chat.findOne({ projectId });
+        if (!chat) {
+          chat = await Chat.create({
+            projectId,
+            participants: [userId, recipientId]
+          });
+        }
+
+        const newMsg = {
+          senderId: userId,
+          receiverId: recipientId,
+          message: content.trim(),
+          read: false
+        };
+        chat.messages.push(newMsg);
+        chat.lastMessage = Date.now();
+        await chat.save();
+
+        // Populate the last message for response
+        await chat.populate('messages.senderId', 'name');
+        const saved = chat.messages[chat.messages.length - 1];
+
+        const payload = {
+          _id: saved._id,
+          senderId: userId,
+          senderName: name,
+          senderRole: role,
+          receiverId: recipientId,
+          message: content.trim(),
+          projectId,
+          createdAt: saved.createdAt,
+          read: false
+        };
+
+        // Deliver to recipient (if online)
+        socket.to(`user:${recipientId}`).emit('private-message', payload);
+        // Confirm to sender
+        socket.emit('message-sent', payload);
+
+        // Offline notification
+        if (!onlineUsers.has(recipientId)) {
+          await Notification.create({
+            userId: recipientId,
+            type: 'NEW_MESSAGE',
+            title: 'New Message',
+            message: `${name} sent you a message`,
+            relatedId: projectId,
+            onModel: 'Project',
+            data: { messageId: saved._id }
+          });
+        }
+      } catch (err) {
+        console.error('private-message error:', err);
+        socket.emit('error', { message: 'Failed to send message' });
+      }
     });
 
-    // Handle chat messages (project-specific)
-    socket.on('chat-message', async (data) => {
-      await handleChatMessage(io, socket, data);
+    // ── Typing indicator ─────────────────────────────────────────────────
+    socket.on('typing', ({ recipientId, projectId, isTyping }) => {
+      const payload = { userId, name, isTyping };
+      if (recipientId) {
+        socket.to(`user:${recipientId}`).emit('typing', payload);
+      } else if (projectId) {
+        socket.to(`project:${projectId}`).emit('typing', payload);
+      }
     });
 
-    // Handle typing indicators
-    socket.on('typing', (data) => {
-      handleTypingIndicator(io, socket, data);
+    // ── Read receipts ─────────────────────────────────────────────────────
+    socket.on('message-read', async ({ projectId, senderId }) => {
+      try {
+        const chat = await Chat.findOne({ projectId });
+        if (!chat) return;
+
+        let changed = false;
+        chat.messages.forEach(msg => {
+          if (
+            msg.receiverId.toString() === userId &&
+            msg.senderId.toString() === senderId &&
+            !msg.read
+          ) {
+            msg.read = true;
+            msg.readAt = new Date();
+            changed = true;
+          }
+        });
+        if (changed) await chat.save();
+
+        socket.to(`user:${senderId}`).emit('messages-read', {
+          projectId,
+          readBy: userId,
+          readAt: new Date()
+        });
+      } catch (err) {
+        console.error('message-read error:', err);
+      }
     });
 
-    // Handle read receipts
-    socket.on('message-read', (data) => {
-      handleReadReceipt(io, socket, data);
-    });
-
-    // Handle disconnection
+    // ── Disconnect ────────────────────────────────────────────────────────
     socket.on('disconnect', () => {
-      console.log(`🔌 User disconnected: ${socket.user.name}`);
-      
-      // Remove from online users
-      onlineUsers.delete(socket.user.id);
-      
-      // Notify others
-      socket.broadcast.emit('user-offline', {
-        userId: socket.user.id,
-        name: socket.user.name
-      });
+      console.log(`🔌 Disconnected: ${name}`);
+      onlineUsers.delete(userId);
+      socket.broadcast.emit('user-offline', { userId, name, role });
     });
   });
 
   return io;
 };
 
-// Broadcast online status to relevant users
-const broadcastOnlineStatus = (io, socket) => {
-  // For designers/sellers - notify when customer comes online
-  if (socket.user.role === 'customer') {
-    // Notify assigned designer and seller
-    socket.to(`role:designer`).to(`role:seller`).emit('customer-online', {
-      userId: socket.user.id,
-      name: socket.user.name
-    });
-  }
-  
-  // Send current online users to the newly connected user
-  const onlineUsersList = Array.from(onlineUsers.values()).map(u => ({
-    userId: u.userId,
-    name: u.name,
-    role: u.role
-  }));
-  
-  socket.emit('online-users', onlineUsersList);
-};
+const getOnlineUsers = () => Array.from(onlineUsers.values());
+const isUserOnline = (userId) => onlineUsers.has(userId);
 
-// Handle private messages
-const handlePrivateMessage = async (io, socket, data) => {
-  try {
-    const { recipientId, content, projectId } = data;
-    
-    const message = {
-      id: Date.now().toString(),
-      senderId: socket.user.id,
-      senderName: socket.user.name,
-      senderRole: socket.user.role,
-      recipientId,
-      content,
-      projectId,
-      timestamp: new Date(),
-      read: false
-    };
-
-    // Save to database (you'll need a Message model)
-    // const savedMessage = await Message.create(message);
-
-    // Send to recipient if online
-    socket.to(`user:${recipientId}`).emit('private-message', message);
-    
-    // Also send back to sender for confirmation
-    socket.emit('message-sent', message);
-
-    // If recipient is offline, store as notification
-    if (!onlineUsers.has(recipientId)) {
-      // Create notification in database
-      const Notification = require('../models/Notification');
-      await Notification.create({
-        userId: recipientId,
-        type: 'NEW_MESSAGE',
-        title: 'New Message',
-        message: `${socket.user.name} sent you a message`,
-        relatedId: projectId,
-        onModel: 'Project',
-        data: { messageId: message.id }
-      });
-    }
-  } catch (error) {
-    console.error('Error handling private message:', error);
-    socket.emit('error', { message: 'Failed to send message' });
-  }
-};
-
-// Handle project-specific chat messages
-const handleChatMessage = async (io, socket, data) => {
-  try {
-    const { projectId, content, recipients } = data;
-    
-    const message = {
-      id: Date.now().toString(),
-      senderId: socket.user.id,
-      senderName: socket.user.name,
-      senderRole: socket.user.role,
-      content,
-      projectId,
-      timestamp: new Date()
-    };
-
-    // Save to database
-    // await ChatMessage.create(message);
-
-    // Broadcast to project room
-    io.to(`project:${projectId}`).emit('chat-message', message);
-
-    // Notify offline users
-    if (recipients) {
-      for (const recipientId of recipients) {
-        if (!onlineUsers.has(recipientId)) {
-          const Notification = require('../models/Notification');
-          await Notification.create({
-            userId: recipientId,
-            type: 'PROJECT_MESSAGE',
-            title: 'New Project Message',
-            message: `${socket.user.name} commented on project`,
-            relatedId: projectId,
-            onModel: 'Project'
-          });
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error handling chat message:', error);
-  }
-};
-
-// Handle typing indicators
-const handleTypingIndicator = (io, socket, data) => {
-  const { recipientId, projectId, isTyping } = data;
-  
-  if (recipientId) {
-    // Private chat typing
-    socket.to(`user:${recipientId}`).emit('typing', {
-      userId: socket.user.id,
-      name: socket.user.name,
-      isTyping
-    });
-  } else if (projectId) {
-    // Project chat typing
-    socket.to(`project:${projectId}`).emit('typing', {
-      userId: socket.user.id,
-      name: socket.user.name,
-      isTyping
-    });
-  }
-};
-
-// Handle read receipts
-const handleReadReceipt = (io, socket, data) => {
-  const { messageIds, senderId } = data;
-  
-  // Notify sender that messages were read
-  socket.to(`user:${senderId}`).emit('messages-read', {
-    messageIds,
-    readBy: socket.user.id,
-    readAt: new Date()
-  });
-};
-
-// Helper function to join project room
-const joinProjectRoom = (socket, projectId) => {
-  socket.join(`project:${projectId}`);
-  console.log(`User ${socket.user.name} joined project room: ${projectId}`);
-};
-
-// Helper function to leave project room
-const leaveProjectRoom = (socket, projectId) => {
-  socket.leave(`project:${projectId}`);
-};
-
-// Get online users
-const getOnlineUsers = () => {
-  return Array.from(onlineUsers.values());
-};
-
-// Check if user is online
-const isUserOnline = (userId) => {
-  return onlineUsers.has(userId);
-};
-
-module.exports = {
-  initializeSocket,
-  joinProjectRoom,
-  leaveProjectRoom,
-  getOnlineUsers,
-  isUserOnline
-};
+module.exports = { initializeSocket, getOnlineUsers, isUserOnline };

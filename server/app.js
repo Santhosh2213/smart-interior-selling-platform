@@ -14,8 +14,8 @@ require('./models/ProjectImage');
 require('./models/Material');
 require('./models/GSTCategory');
 require('./models/Quotation');
-require('./models/DesignSuggestion');      // Add this
-require('./models/DesignerSuggestion');    // Add this for legacy
+require('./models/DesignSuggestion');
+require('./models/DesignerSuggestion');
 require('./models/Notification');
 require('./models/Chat');
 
@@ -29,26 +29,29 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const designerRoutes = require('./routes/designerRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 
 // Import middleware
 const errorHandler = require('./middleware/errorMiddleware');
 
 const app = express();
 
+// ✅ CORS FIRST
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // Body parser
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
-// Enable CORS
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
-}));
-
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Mount routes
+// ✅ Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/quotations', quotationRoutes);
@@ -58,6 +61,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/designer', designerRoutes);
+app.use('/api', profileRoutes);  // Profile routes last
 
 // Base route
 app.get('/', (req, res) => {

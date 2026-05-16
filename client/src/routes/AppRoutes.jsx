@@ -4,8 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import Loader from '../components/common/Loader';
 import NotFound from '../pages/common/NotFound';
 
-
-
 // Public Pages
 import LandingPage from '../pages/auth/LandingPage';
 import CustomerLogin from '../pages/auth/CustomerLogin';
@@ -13,6 +11,9 @@ import CustomerRegister from '../pages/auth/CustomerRegister';
 import SellerLogin from '../pages/auth/SellerLogin';
 import DesignerLogin from '../pages/auth/DesignerLogin';
 import ForgotPassword from '../pages/auth/ForgotPassword';
+import CustomerProfilePage from '../pages/customer/ProfilePage';
+import SellerProfilePage from '../pages/seller/ProfilePage';
+import DesignerProfilePage from '../pages/designer/ProfilePage';
 
 // Customer Pages
 import CustomerDashboard from '../pages/customer/Dashboard';
@@ -22,10 +23,10 @@ import QuotationView from '../pages/customer/QuotationView';
 import ProfilePage from '../pages/customer/ProfilePage';
 import DesignReview from '../pages/customer/DesignReview';
 
-// Seller Pages - VERIFY THESE PATHS ARE CORRECT
+// Seller Pages
 import SellerDashboard from '../pages/seller/Dashboard';
 import ProjectQueue from '../pages/seller/ProjectQueue';
-import CreateQuotation from '../pages/seller/CreateQuotation';  // Make sure this file exists
+import CreateQuotation from '../pages/seller/CreateQuotation';
 import QuotationList from '../pages/seller/QuotationList';
 import MaterialDatabase from '../pages/seller/MaterialDatabase';
 import GSTSettings from '../pages/seller/GSTSettings';
@@ -69,7 +70,25 @@ const AppRoutes = () => {
       <Route path="/seller/login" element={<PublicRoute><SellerLogin /></PublicRoute>} />
       <Route path="/designer/login" element={<PublicRoute><DesignerLogin /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-      <Route path="/src/pages/common/NotFound" element={<NotFound />} />
+
+      {/* Redirect old /chat to role-based chat */}
+      <Route path="/chat" element={
+        <PrivateRoute>
+          {user?.role === 'customer' && <Navigate to="/customer/chat" replace />}
+          {user?.role === 'seller' && <Navigate to="/seller/chat" replace />}
+          {user?.role === 'designer' && <Navigate to="/designer/chat" replace />}
+          {!user?.role && <Navigate to="/" replace />}
+        </PrivateRoute>
+      } />
+
+      {/* Redirect old /notifications */}
+      <Route path="/notifications" element={
+        <PrivateRoute>
+          {user?.role === 'customer' && <Navigate to="/customer/notifications" replace />}
+          {user?.role === 'seller' && <Navigate to="/seller/notifications" replace />}
+          {user?.role === 'designer' && <Navigate to="/designer/notifications" replace />}
+        </PrivateRoute>
+      } />
 
       {/* Customer Routes */}
       <Route path="/customer">
@@ -80,6 +99,9 @@ const AppRoutes = () => {
         <Route path="quotations/:id" element={<CustomerRoute><QuotationView /></CustomerRoute>} />
         <Route path="design-review/:id" element={<CustomerRoute><DesignReview /></CustomerRoute>} />
         <Route path="profile" element={<CustomerRoute><ProfilePage /></CustomerRoute>} />
+        <Route path="chat" element={<CustomerRoute><ChatInterface /></CustomerRoute>} />
+        <Route path="notifications" element={<CustomerRoute><Notifications /></CustomerRoute>} />
+        <Route path="profile" element={<CustomerRoute><CustomerProfilePage /></CustomerRoute>} />
       </Route>
 
       {/* Seller Routes */}
@@ -96,7 +118,9 @@ const AppRoutes = () => {
         <Route path="reports" element={<SellerRoute><Reports /></SellerRoute>} />
         <Route path="project/:id" element={<SellerRoute><ProjectDetailsView /></SellerRoute>} />
         <Route path="approved-design/:id" element={<SellerRoute><ApprovedDesignView /></SellerRoute>} />
-        
+        <Route path="chat" element={<SellerRoute><ChatInterface /></SellerRoute>} />
+        <Route path="notifications" element={<SellerRoute><Notifications /></SellerRoute>} />
+        <Route path="profile" element={<SellerRoute><SellerProfilePage /></SellerRoute>} />
       </Route>
 
       {/* Designer Routes */}
@@ -106,29 +130,17 @@ const AppRoutes = () => {
         <Route path="queue" element={<DesignerRoute><ConsultationQueue /></DesignerRoute>} />
         <Route path="consultation/:id" element={<DesignerRoute><ProjectConsultation /></DesignerRoute>} />
         <Route path="suggestions" element={<DesignerRoute><DesignSuggestions /></DesignerRoute>} />
+        <Route path="chat" element={<DesignerRoute><ChatInterface /></DesignerRoute>} />
+        <Route path="notifications" element={<DesignerRoute><Notifications /></DesignerRoute>} />
+        <Route path="profile" element={<DesignerRoute><DesignerProfilePage /></DesignerRoute>} />
       </Route>
 
       {/* Common Routes */}
-      <Route path="/chat" element={<PrivateRoute><ChatInterface /></PrivateRoute>} />
-      <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
       <Route path="/help" element={<HelpCenter />} />
       <Route path="/terms" element={<TermsConditions />} />
 
       {/* 404 Route */}
-      <Route path="*" element={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-            <p className="text-gray-600 mb-8">Page not found</p>
-            <button 
-              onClick={() => window.location.href = '/'}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Go Home
-            </button>
-          </div>
-        </div>
-      } />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

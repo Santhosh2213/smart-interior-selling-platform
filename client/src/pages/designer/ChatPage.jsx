@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useSocket } from '../../context/SocketContext';
+import { useAuth } from '../../context/AuthContext';
+import  chatService  from '../../services/chatService';
+import Loader from '../../components/common/Loader';
+import toast from 'react-hot-toast';
 import {
   PaperAirplaneIcon,
   MagnifyingGlassIcon,
@@ -13,17 +17,14 @@ import {
   PencilIcon,
   TrashIcon,
   EllipsisHorizontalIcon,
-  CheckIcon
+  CheckIcon,
+  UserGroupIcon,
+  BuildingStorefrontIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
-import chatService from '../../services/chatService';  // Default import
-import { useAuth } from '../../context/AuthContext';
-import { useSocket } from '../../context/SocketContext';
-import Loader from '../../components/common/Loader';
-import toast from 'react-hot-toast';
 import EmojiPicker from 'emoji-picker-react';
 
-const ChatInterface = () => {
-  const { projectId: urlProjectId } = useParams();
+const DesignerChatPage = () => {
   const { user } = useAuth();
   const { isConnected, isOnline, sendMessage: socketSend, sendTyping, markAsRead, joinProjectRoom, leaveProjectRoom, on, off } = useSocket();
 
@@ -48,49 +49,32 @@ const ChatInterface = () => {
   const typingRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const editInputRef = useRef(null);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   }, []);
 
-  // Add this near the top of ChatInterface component
+  // In the fetchConversations function, change:
 const fetchConversations = useCallback(async () => {
-  try {
-    setLoading(true);
-    console.log('Fetching conversations for role:', user?.role);
-    
-    let res;
-    // Fetch based on user role
-    if (user?.role === 'seller') {
-      res = await chatService.getSellerConversations();
-    } else if (user?.role === 'designer') {
-      res = await chatService.getDesignerConversations();
-    } else {
-      res = await chatService.getConversations();
+    try {
+      setLoading(true);
+      // Use designer conversations endpoint
+      const res = await chatService.getDesignerConversations();
+      const list = res.data || [];
+      
+      const sortedList = list.sort((a, b) => 
+        new Date(b.lastMessage?.createdAt || b.updatedAt) - 
+        new Date(a.lastMessage?.createdAt || a.updatedAt)
+      );
+      
+      setConversations(sortedList);
+    } catch (error) {
+      console.error('Fetch conversations error:', error);
+      toast.error('Failed to load conversations');
+    } finally {
+      setLoading(false);
     }
-    
-    const list = res.data || [];
-    console.log('Conversations list:', list);
-    
-    const sortedList = list.sort((a, b) => 
-      new Date(b.lastMessage?.createdAt || b.updatedAt) - 
-      new Date(a.lastMessage?.createdAt || a.updatedAt)
-    );
-    
-    setConversations(sortedList);
-
-    if (urlProjectId) {
-      const match = sortedList.find(c => c.projectId?._id === urlProjectId);
-      if (match) await openConversation(match);
-    }
-  } catch (error) {
-    console.error('Fetch conversations error:', error);
-    toast.error('Failed to load conversations: ' + error.message);
-  } finally {
-    setLoading(false);
-  }
-}, [user?.role, urlProjectId]);
+  }, []);
 
   useEffect(() => { 
     fetchConversations(); 
@@ -127,11 +111,10 @@ const fetchConversations = useCallback(async () => {
     }
   }, [selectedConv, joinProjectRoom, leaveProjectRoom, markAsRead, scrollToBottom]);
 
-  // Socket listeners
+  // Socket listeners (same as ChatInterface)
   useEffect(() => {
     const handleMsg = (msg) => {
       if (msg.projectId === selectedConv?.projectId?._id) {
-        // Add message status
         const newMsg = { ...msg, status: 'delivered' };
         setMessages(prev => prev.find(m => m._id === msg._id) ? prev : [...prev, newMsg]);
         scrollToBottom();
@@ -140,21 +123,7 @@ const fetchConversations = useCallback(async () => {
           markAsRead(msg.projectId, msg.senderId);
         }
       } else {
-        setConversations(prev => {
-          const convIndex = prev.findIndex(c => c.projectId?._id === msg.projectId);
-          if (convIndex !== -1) {
-            const updated = [...prev];
-            updated[convIndex] = {
-              ...updated[convIndex],
-              unreadCount: msg.senderId !== user._id ? (updated[convIndex].unreadCount || 0) + 1 : updated[convIndex].unreadCount,
-              lastMessage: msg,
-              updatedAt: msg.createdAt
-            };
-            const [moved] = updated.splice(convIndex, 1);
-            return [moved, ...updated];
-          }
-          return prev;
-        });
+        fetchConversations(); // Refresh conversations
       }
     };
 
@@ -164,37 +133,7 @@ const fetchConversations = useCallback(async () => {
       ));
       scrollToBottom();
       setSending(false);
-      
-      setConversations(prev => {
-        const convIndex = prev.findIndex(c => c.projectId?._id === msg.projectId);
-        if (convIndex !== -1) {
-          const updated = [...prev];
-          updated[convIndex] = {
-            ...updated[convIndex],
-            lastMessage: msg,
-            updatedAt: msg.createdAt
-          };
-          const [moved] = updated.splice(convIndex, 1);
-          return [moved, ...updated];
-        }
-        return prev;
-      });
-    };
-
-    const handleMessageEdited = ({ messageId, message, editedAt }) => {
-      setMessages(prev => prev.map(m => 
-        m._id === messageId 
-          ? { ...m, message, edited: true, editedAt }
-          : m
-      ));
-    };
-
-    const handleMessageDeleted = ({ messageId }) => {
-      setMessages(prev => prev.map(m => 
-        m._id === messageId 
-          ? { ...m, deleted: true, message: 'This message was deleted' }
-          : m
-      ));
+      fetchConversations();
     };
 
     const handleTyping = ({ userId, name, isTyping: t }) => {
@@ -215,20 +154,16 @@ const fetchConversations = useCallback(async () => {
 
     on('private-message', handleMsg);
     on('message-sent', handleSent);
-    on('message-edited', handleMessageEdited);
-    on('message-deleted-for-everyone', handleMessageDeleted);
     on('typing', handleTyping);
     on('messages-read', handleRead);
 
     return () => {
       off('private-message', handleMsg);
       off('message-sent', handleSent);
-      off('message-edited', handleMessageEdited);
-      off('message-deleted-for-everyone', handleMessageDeleted);
       off('typing', handleTyping);
       off('messages-read', handleRead);
     };
-  }, [selectedConv, on, off, markAsRead, scrollToBottom, user._id]);
+  }, [selectedConv, on, off, markAsRead, scrollToBottom, user._id, fetchConversations]);
 
   const handleSend = useCallback(async (e) => {
     e.preventDefault();
@@ -252,20 +187,17 @@ const fetchConversations = useCallback(async () => {
     setIsTyping(false);
     sendTyping(selectedConv.otherUser?._id, selectedConv.projectId?._id, false);
 
-    // Optimistic message with status
     const opt = {
       _id: `opt-${Date.now()}`,
       senderId: user._id || user.id,
       receiverId: selectedConv.otherUser?._id,
       message: text || (attachment ? '📎 ' + attachment.name : ''),
-      messageType: attachment ? 'file' : 'text',
       attachment: attachmentData,
       projectId: selectedConv.projectId?._id,
       projectName: selectedConv.projectId?.title,
       createdAt: new Date().toISOString(),
       read: false,
-      status: 'sending',
-      replyingTo: replyingTo
+      status: 'sending'
     };
     setMessages(prev => [...prev, opt]);
     scrollToBottom();
@@ -274,35 +206,7 @@ const fetchConversations = useCallback(async () => {
 
     setTimeout(() => setSending(false), 3000);
     inputRef.current?.focus();
-    setReplyingTo(null);
-  }, [newMessage, attachment, selectedConv, sending, user, socketSend, sendTyping, scrollToBottom, replyingTo]);
-
-  const handleEditMessage = async () => {
-    if (!editText.trim() || !editingMessage) return;
-    
-    try {
-      await chatService.editMessage(editingMessage._id, editText);
-      setEditingMessage(null);
-      setEditText('');
-      toast.success('Message edited');
-    } catch (error) {
-      console.error('Edit message error:', error);
-      toast.error('Failed to edit message');
-    }
-  };
-
-  const handleDeleteMessage = async (messageId, deleteForEveryone = true) => {
-    if (window.confirm(deleteForEveryone ? 'Delete this message for everyone?' : 'Delete this message for yourself?')) {
-      try {
-        await chatService.deleteMessage(messageId, deleteForEveryone);
-        toast.success('Message deleted');
-      } catch (error) {
-        console.error('Delete message error:', error);
-        toast.error('Failed to delete message');
-      }
-    }
-    setShowMenuFor(null);
-  };
+  }, [newMessage, attachment, selectedConv, sending, user, socketSend, sendTyping, scrollToBottom]);
 
   const handleInput = useCallback((e) => {
     setNewMessage(e.target.value);
@@ -335,7 +239,36 @@ const fetchConversations = useCallback(async () => {
     }
   };
 
-  // WhatsApp-style message bubble component
+  const handleEditMessage = async () => {
+    if (!editText.trim() || !editingMessage) return;
+    try {
+      await chatService.editMessage(editingMessage._id, editText);
+      setEditingMessage(null);
+      setEditText('');
+      toast.success('Message edited');
+    } catch (error) {
+      toast.error('Failed to edit message');
+    }
+  };
+
+  const handleDeleteMessage = async (messageId, deleteForEveryone = true) => {
+    if (window.confirm(deleteForEveryone ? 'Delete this message for everyone?' : 'Delete this message for yourself?')) {
+      try {
+        await chatService.deleteMessage(messageId, deleteForEveryone);
+        toast.success('Message deleted');
+      } catch (error) {
+        toast.error('Failed to delete message');
+      }
+    }
+    setShowMenuFor(null);
+  };
+
+  const getRoleIcon = (role) => {
+    if (role === 'customer') return <UserIcon className="w-4 h-4" />;
+    if (role === 'seller') return <BuildingStorefrontIcon className="w-4 h-4" />;
+    return <UserGroupIcon className="w-4 h-4" />;
+  };
+
   const MessageBubble = ({ message, isMine }) => {
     if (message.deleted) {
       return (
@@ -346,40 +279,27 @@ const fetchConversations = useCallback(async () => {
         </div>
       );
     }
-  
+
     return (
       <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} my-1 group`}>
         <div className={`relative max-w-[70%] ${isMine ? 'items-end' : 'items-start'}`}>
-          {/* Message bubble */}
           <div className={`relative px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
             isMine 
               ? 'bg-blue-500 text-white rounded-br-none' 
               : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
           }`}>
-            {/* Sender name (only for group chats, show for receiver) */}
             {!isMine && message.senderName && (
               <p className="text-xs font-semibold mb-1 text-blue-600">
                 {message.senderName}
               </p>
             )}
             
-            {/* Reply indicator */}
-            {message.replyTo && (
-              <div className={`text-xs mb-1 pb-1 border-b ${isMine ? 'border-blue-400' : 'border-gray-200'}`}>
-                <span className="font-medium">↩️ {message.replyTo.senderName}</span>
-                <p className="truncate text-xs opacity-75">{message.replyTo.message}</p>
-              </div>
-            )}
-            
-            {/* Message text */}
             <p className="break-words whitespace-pre-wrap">{message.message}</p>
             
-            {/* Edit indicator */}
             {message.edited && (
               <span className="text-[10px] opacity-60 ml-1">(edited)</span>
             )}
             
-            {/* Attachment preview */}
             {message.attachment && (
               <div className="mt-2">
                 {message.attachment.type?.startsWith('image/') ? (
@@ -398,23 +318,13 @@ const fetchConversations = useCallback(async () => {
               </div>
             )}
             
-            {/* Timestamp and status */}
             <div className="flex items-center justify-end space-x-1 mt-1">
               <span className={`text-[10px] ${isMine ? 'text-blue-100' : 'text-gray-400'}`}>
                 {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
-              {isMine && (
-                <>
-                  {message.status === 'sending' && <ClockIcon className="w-3 h-3 text-blue-100" />}
-                  {message.status === 'sent' && <CheckIcon className="w-3 h-3 text-blue-100" />}
-                  {message.status === 'delivered' && <CheckCircleIcon className="w-3 h-3 text-blue-100" />}
-                  {message.status === 'read' && <CheckCircleIcon className="w-3 h-3 text-blue-100" />}
-                </>
-              )}
             </div>
           </div>
           
-          {/* Menu button for own messages (hover) */}
           {isMine && (
             <div className="absolute -top-6 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
@@ -424,7 +334,6 @@ const fetchConversations = useCallback(async () => {
                 <EllipsisHorizontalIcon className="w-4 h-4 text-gray-500" />
               </button>
               
-              {/* Dropdown menu */}
               {showMenuFor === message._id && (
                 <div className="absolute right-0 top-6 bg-white rounded-lg shadow-lg border py-1 z-10 min-w-[140px]">
                   <button
@@ -460,9 +369,6 @@ const fetchConversations = useCallback(async () => {
       </div>
     );
   };
-
-  // Add editMessage and deleteMessage to chatService
-  // In chatService.js add these methods
 
   const filtered = conversations.filter(c => {
     const q = searchQuery.toLowerCase();
@@ -501,14 +407,16 @@ const fetchConversations = useCallback(async () => {
               <div className="text-center py-10">
                 <ChatBubbleLeftRightIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                 <p className="text-sm text-gray-400">No conversations</p>
+                <p className="text-xs text-gray-400 mt-1">When you're assigned to projects, chats will appear here</p>
               </div>
             ) : (
               filtered.map(conv => {
-                const active = selectedConv?.projectId?._id === conv.projectId?._id;
+                const active = selectedConv?.projectId?._id === conv.projectId?._id && 
+                               selectedConv?.otherUser?._id === conv.otherUser?._id;
                 const online = isOnline(conv.otherUser?._id);
                 return (
                   <button
-                    key={conv.projectId?._id}
+                    key={`${conv.projectId?._id}-${conv.otherUser?._id}`}
                     onClick={() => openConversation(conv)}
                     className={`w-full px-4 py-3 text-left border-b border-gray-50 transition-colors ${active ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-gray-50'}`}
                   >
@@ -521,7 +429,12 @@ const fetchConversations = useCallback(async () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-800 truncate">{conv.otherUser?.name}</span>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-sm font-medium text-gray-800 truncate">{conv.otherUser?.name}</span>
+                            <span className="text-xs text-gray-400 flex items-center">
+                              {getRoleIcon(conv.otherUser?.role)}
+                            </span>
+                          </div>
                           {conv.lastMessage && <span className="text-[10px] text-gray-400 flex-shrink-0">{formatTime(conv.lastMessage?.createdAt)}</span>}
                         </div>
                         <p className="text-xs text-gray-500 truncate">{conv.projectId?.title}</p>
@@ -542,7 +455,7 @@ const fetchConversations = useCallback(async () => {
           </div>
         </div>
 
-        {/* Chat Area - WhatsApp Style */}
+        {/* Chat Area */}
         <div className="flex-1 flex flex-col bg-gray-50">
           {selectedConv ? (
             <>
@@ -560,7 +473,8 @@ const fetchConversations = useCallback(async () => {
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{selectedConv.otherUser?.name}</p>
                     <p className="text-xs text-gray-500">
-                      {isOnline(selectedConv.otherUser?._id) ? 'Online' : 'Offline'} · {selectedConv.projectId?.title}
+                      {selectedConv.otherUser?.role === 'customer' ? 'Customer' : 'Seller'} · 
+                      <span className="text-blue-600 ml-1">{selectedConv.projectId?.title}</span>
                     </p>
                   </div>
                 </div>
@@ -572,25 +486,14 @@ const fetchConversations = useCallback(async () => {
               </div>
 
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader size="sm" /></div>
                 ) : (
                   <>
-                    {/* Date separator */}
-                    {messages.length > 0 && (
-                      <div className="flex justify-center my-4">
-                        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-                          {new Date(messages[0]?.createdAt).toDateString() === new Date().toDateString() ? 'Today' : new Date(messages[0]?.createdAt).toDateString()}
-                        </span>
-                      </div>
-                    )}
-                    
                     {messages.map((msg, idx) => {
-                      // Robust isMine check
                       const currentUserId = (user._id || user.id)?.toString();
                       let senderId = '';
-                      
                       if (msg.senderId) {
                         if (typeof msg.senderId === 'object' && msg.senderId._id) {
                           senderId = msg.senderId._id.toString();
@@ -600,13 +503,10 @@ const fetchConversations = useCallback(async () => {
                           senderId = msg.senderId.toString();
                         }
                       }
-                      
                       const isMine = senderId === currentUserId;
-                      
                       return <MessageBubble key={msg._id || idx} message={msg} isMine={isMine} />;
                     })}
                     
-                    {/* Typing indicator */}
                     {typingUsers.size > 0 && (
                       <div className="flex items-center space-x-1 px-2">
                         <div className="flex space-x-1">
@@ -630,25 +530,14 @@ const fetchConversations = useCallback(async () => {
                   <div className="bg-white rounded-lg p-4 w-96">
                     <h3 className="text-lg font-semibold mb-3">Edit Message</h3>
                     <textarea
-                      ref={editInputRef}
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
                       className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       rows="3"
                     />
                     <div className="flex justify-end space-x-2 mt-3">
-                      <button
-                        onClick={() => setEditingMessage(null)}
-                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleEditMessage}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                      >
-                        Save
-                      </button>
+                      <button onClick={() => setEditingMessage(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                      <button onClick={handleEditMessage} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Save</button>
                     </div>
                   </div>
                 </div>
@@ -662,21 +551,7 @@ const fetchConversations = useCallback(async () => {
                       <DocumentArrowUpIcon className="w-5 h-5 text-gray-500" />
                       <span className="text-sm">{attachment.name}</span>
                     </div>
-                    <button onClick={() => setAttachment(null)} className="text-gray-500 hover:text-gray-700">
-                      <XMarkIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Reply indicator */}
-              {replyingTo && (
-                <div className="px-4 pt-2">
-                  <div className="bg-gray-100 rounded-lg p-2 flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500">Replying to: {replyingTo.message?.substring(0, 30)}</span>
-                    </div>
-                    <button onClick={() => setReplyingTo(null)} className="text-gray-500">
+                    <button onClick={() => setAttachment(null)} className="text-gray-500">
                       <XMarkIcon className="w-4 h-4" />
                     </button>
                   </div>
@@ -701,20 +576,14 @@ const fetchConversations = useCallback(async () => {
                   >
                     <PhotoIcon className="w-5 h-5" />
                   </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,application/pdf,.doc,.docx"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+                  <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx" onChange={handleFileSelect} className="hidden" />
                   
                   <input
                     ref={inputRef}
                     type="text"
                     value={newMessage}
                     onChange={handleInput}
-                    placeholder="Type a message..."
+                    placeholder={`Message ${selectedConv.otherUser?.name}...`}
                     disabled={sending}
                     className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
@@ -741,7 +610,7 @@ const fetchConversations = useCallback(async () => {
               <div className="text-center">
                 <ChatBubbleLeftRightIcon className="w-14 h-14 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 text-sm font-medium">Select a conversation</p>
-                <p className="text-gray-400 text-xs mt-1">Choose a project from the left to start chatting</p>
+                <p className="text-gray-400 text-xs mt-1">Choose a chat to start messaging</p>
               </div>
             </div>
           )}
@@ -751,4 +620,4 @@ const fetchConversations = useCallback(async () => {
   );
 };
 
-export default ChatInterface;
+export default DesignerChatPage;

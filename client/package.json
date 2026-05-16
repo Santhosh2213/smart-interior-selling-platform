@@ -22,6 +22,7 @@
     "delayed-stream": "^1.0.0",
     "dunder-proto": "^1.0.1",
     "electron-to-chromium": "^1.5.286",
+    "emoji-picker-react": "^4.19.1",
     "engine.io-client": "^6.6.4",
     "engine.io-parser": "^5.2.3",
     "es-define-property": "^1.0.1",

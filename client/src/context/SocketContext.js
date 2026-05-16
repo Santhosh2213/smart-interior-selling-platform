@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import socketService from '../services/socketService';
 
@@ -6,9 +6,7 @@ const SocketContext = createContext();
 
 export const useSocket = () => {
   const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider');
-  }
+  if (!context) throw new Error('useSocket must be used within a SocketProvider');
   return context;
 };
 
@@ -18,102 +16,87 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Connect to socket
-      socketService.connect();
+    if (!isAuthenticated || !user) return;
 
-      // Set up listeners
-      const handleConnect = () => {
-        console.log('Socket connected');
-        setIsConnected(true);
-      };
+    socketService.connect();
 
-      const handleDisconnect = () => {
-        console.log('Socket disconnected');
-        setIsConnected(false);
-      };
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+    const onOnlineUsers = (users) => setOnlineUsers(users);
+    const onUserOnline = ({ userId, name, role }) => {
+      setOnlineUsers(prev => {
+        if (prev.find(u => u.userId === userId)) return prev;
+        return [...prev, { userId, name, role }];
+      });
+    };
+    const onUserOffline = ({ userId }) => {
+      setOnlineUsers(prev => prev.filter(u => u.userId !== userId));
+    };
 
-      const handleOnlineUsers = (users) => {
-        setOnlineUsers(users);
-      };
+    socketService.on('connect', onConnect);
+    socketService.on('disconnect', onDisconnect);
+    socketService.on('online-users', onOnlineUsers);
+    socketService.on('user-online', onUserOnline);
+    socketService.on('user-offline', onUserOffline);
 
-      const handleNotification = (notification) => {
-        console.log('New notification:', notification);
-        // You can handle notifications here or let the NotificationBell component handle it
-      };
-
-      // Register listeners
-      socketService.on('connect', handleConnect);
-      socketService.on('disconnect', handleDisconnect);
-      socketService.on('online-users', handleOnlineUsers);
-      socketService.on('notification', handleNotification);
-
-      return () => {
-        // Clean up listeners
-        socketService.off('connect', handleConnect);
-        socketService.off('disconnect', handleDisconnect);
-        socketService.off('online-users', handleOnlineUsers);
-        socketService.off('notification', handleNotification);
-        socketService.disconnect();
-      };
-    }
+    return () => {
+      socketService.off('connect', onConnect);
+      socketService.off('disconnect', onDisconnect);
+      socketService.off('online-users', onOnlineUsers);
+      socketService.off('user-online', onUserOnline);
+      socketService.off('user-offline', onUserOffline);
+      socketService.disconnect();
+    };
   }, [isAuthenticated, user]);
 
-  // Function to join a project room
-  const joinProjectRoom = (projectId) => {
+  // Add this to see connection status
+useEffect(() => {
+  console.log('Socket connection status:', isConnected);
+}, [isConnected]);
+
+  // ── Helpers exposed to the rest of the app ──────────────────────────────
+  const joinProjectRoom = useCallback((projectId) => {
     socketService.joinProjectRoom(projectId);
-  };
+  }, []);
 
-  // Function to leave a project room
-  const leaveProjectRoom = (projectId) => {
+  const leaveProjectRoom = useCallback((projectId) => {
     socketService.leaveProjectRoom(projectId);
-  };
+  }, []);
 
-  // Function to send a private message
-  const sendMessage = (recipientId, content, projectId = null) => {
+  const sendMessage = useCallback((recipientId, content, projectId = null) => {
     socketService.sendPrivateMessage(recipientId, content, projectId);
-  };
+  }, []);
 
-  // Function to send a project message
-  const sendProjectMessage = (projectId, content, recipients = []) => {
-    socketService.sendChatMessage(projectId, content, recipients);
-  };
-
-  // Function to send typing indicator
-  const sendTyping = (recipientId, projectId, isTyping) => {
+  const sendTyping = useCallback((recipientId, projectId, isTyping) => {
     socketService.sendTyping(recipientId, projectId, isTyping);
-  };
+  }, []);
 
-  // Function to mark messages as read
-  const markAsRead = (messageIds, senderId) => {
-    socketService.markMessagesAsRead(messageIds, senderId);
-  };
+  const markAsRead = useCallback((projectId, senderId) => {
+    socketService.markMessagesAsRead(projectId, senderId);
+  }, []);
 
-  // Function to listen for custom events
-  const on = (event, callback) => {
-    socketService.on(event, callback);
-  };
+  const on = useCallback((event, cb) => socketService.on(event, cb), []);
+  const off = useCallback((event, cb) => socketService.off(event, cb), []);
+  const emit = useCallback((event, data) => socketService.emit(event, data), []);
 
-  // Function to emit custom events
-  const emit = (event, data) => {
-    socketService.emit(event, data);
-  };
-
-  const value = {
-    onlineUsers,
-    isConnected,
-    joinProjectRoom,
-    leaveProjectRoom,
-    sendMessage,
-    sendProjectMessage,
-    sendTyping,
-    markAsRead,
-    on,
-    emit
-  };
+  const isOnline = useCallback((userId) => {
+    return onlineUsers.some(u => u.userId === userId);
+  }, [onlineUsers]);
 
   return (
-    <SocketContext.Provider value={value}>
+    <SocketContext.Provider value={{
+      onlineUsers,
+      isConnected,
+      isOnline,
+      joinProjectRoom,
+      leaveProjectRoom,
+      sendMessage,
+      sendTyping,
+      markAsRead,
+      on,
+      off,
+      emit
+    }}>
       {children}
     </SocketContext.Provider>
   );
