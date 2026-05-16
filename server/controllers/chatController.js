@@ -3,6 +3,7 @@ const Project = require('../models/Project');
 const User = require('../models/User');
 const Quotation = require('../models/Quotation');
 const DesignSuggestion = require('../models/DesignSuggestion');
+const Customer = require('../models/Customer');  // Add this
 const Seller = require('../models/Seller');
 const Designer = require('../models/Designer');
 
@@ -589,7 +590,7 @@ exports.deleteMessage = async (req, res) => {
   }
 };
 
-// @desc  Get conversations for designer (ALL projects - no assignment needed)
+// @desc  Get conversations for designer (ALL projects - shows all customers)
 // @route GET /api/chat/designer/conversations
 // @access Private (designer only)
 exports.getDesignerConversations = async (req, res) => {
@@ -598,15 +599,12 @@ exports.getDesignerConversations = async (req, res) => {
     console.log('User:', req.user.id, 'Role:', req.user.role);
     
     // Get designer profile
-    const Designer = require('../models/Designer');
     const designer = await Designer.findOne({ userId: req.user.id });
-    
     if (!designer) {
       return res.status(404).json({ success: false, error: 'Designer profile not found' });
     }
     
-    // ✅ FIX: Get ALL projects - not just assigned ones
-    // Designers should see all projects to discuss requirements
+    // Get ALL projects - designers should see all customers
     const projects = await Project.find({})
       .populate('customerId')
       .sort('-createdAt');
@@ -620,23 +618,20 @@ exports.getDesignerConversations = async (req, res) => {
       if (!project.customerId) continue;
       
       // Get customer user
-      const Customer = require('../models/Customer');
       const customer = await Customer.findById(project.customerId);
       if (!customer) continue;
       
       const customerUser = await User.findById(customer.userId);
       if (!customerUser) continue;
       
-      // Find or create chat for this project
+      // Find or create chat
       let chat = await Chat.findOne({ projectId: project._id });
       
       if (!chat) {
-        // Create chat with all participants
         const participants = [customerUser._id, req.user.id];
         
         // Add seller if exists
         if (project.assignedSeller) {
-          const Seller = require('../models/Seller');
           const seller = await Seller.findById(project.assignedSeller);
           if (seller && seller.userId) {
             participants.push(seller.userId);
@@ -651,120 +646,7 @@ exports.getDesignerConversations = async (req, res) => {
         console.log(`Created new chat for project: ${project.title}`);
       }
       
-      // Get other participants (excluding current user)
-      const otherParticipants = chat.participants.filter(
-        p => p.toString() !== req.user.id
-      );
-      
-      // For each other participant, create a conversation entry
-      for (const participantId of otherParticipants) {
-        const otherUser = await User.findById(participantId).select('name role email avatar');
-        
-        if (otherUser) {
-          const key = `${project._id}-${otherUser._id}`;
-          if (!processedKeys.has(key)) {
-            processedKeys.add(key);
-            
-            const msgs = chat.messages || [];
-            const lastMsg = msgs[msgs.length - 1] || null;
-            const unread = msgs.filter(
-              m => m.receiverId && m.receiverId.toString() === req.user.id && !m.read
-            ).length;
-            
-            conversations.push({
-              _id: chat._id,
-              projectId: {
-                _id: project._id,
-                title: project.title,
-                status: project.status
-              },
-              otherUser: otherUser,
-              lastMessage: lastMsg,
-              unreadCount: unread,
-              updatedAt: chat.lastMessage,
-              role: otherUser.role
-            });
-          }
-        }
-      }
-    }
-    
-    // Sort by last message time
-    conversations.sort((a, b) => 
-      new Date(b.lastMessage?.createdAt || b.updatedAt) - 
-      new Date(a.lastMessage?.createdAt || a.updatedAt)
-    );
-    
-    console.log(`Returning ${conversations.length} conversations for designer`);
-    res.json({ success: true, data: conversations });
-    
-  } catch (err) {
-    console.error('getDesignerConversations error:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-// @desc  Get conversations for seller (ALL projects - no assignment needed)
-// @route GET /api/chat/seller/conversations
-// @access Private (seller only)
-exports.getSellerConversations = async (req, res) => {
-  try {
-    console.log('=== getSellerConversations called ===');
-    console.log('User:', req.user.id, 'Role:', req.user.role);
-    
-    // Get seller profile
-    const Seller = require('../models/Seller');
-    const seller = await Seller.findOne({ userId: req.user.id });
-    
-    if (!seller) {
-      return res.status(404).json({ success: false, error: 'Seller profile not found' });
-    }
-    
-    // ✅ FIX: Get ALL projects - sellers should see all customers
-    const projects = await Project.find({})
-      .populate('customerId')
-      .sort('-createdAt');
-    
-    console.log(`Found ${projects.length} total projects for seller view`);
-    
-    const conversations = [];
-    const processedKeys = new Set();
-    
-    for (const project of projects) {
-      if (!project.customerId) continue;
-      
-      // Get customer user
-      const Customer = require('../models/Customer');
-      const customer = await Customer.findById(project.customerId);
-      if (!customer) continue;
-      
-      const customerUser = await User.findById(customer.userId);
-      if (!customerUser) continue;
-      
-      // Find or create chat
-      let chat = await Chat.findOne({ projectId: project._id });
-      
-      if (!chat) {
-        const participants = [customerUser._id, req.user.id];
-        
-        // Add designer if exists
-        if (project.assignedDesigner) {
-          const Designer = require('../models/Designer');
-          const designer = await Designer.findById(project.assignedDesigner);
-          if (designer && designer.userId) {
-            participants.push(designer.userId);
-          }
-        }
-        
-        chat = await Chat.create({
-          projectId: project._id,
-          projectName: project.title,
-          participants: participants
-        });
-        console.log(`Created new chat for project: ${project.title}`);
-      }
-      
-      // Check if seller is in participants
+      // Ensure designer is in participants
       if (!chat.participants.map(String).includes(req.user.id)) {
         chat.participants.push(req.user.id);
         await chat.save();
@@ -787,15 +669,129 @@ exports.getSellerConversations = async (req, res) => {
             title: project.title,
             status: project.status
           },
-          otherUser: customerUser,
+          otherUser: {
+            _id: customerUser._id,
+            name: customerUser.name,
+            email: customerUser.email,
+            avatar: customerUser.avatar,
+            role: 'customer'
+          },
           lastMessage: lastMsg,
           unreadCount: unread,
-          updatedAt: chat.lastMessage,
-          role: 'customer'
+          updatedAt: chat.lastMessage
         });
       }
     }
     
+    // Sort by last message time
+    conversations.sort((a, b) => 
+      new Date(b.lastMessage?.createdAt || b.updatedAt) - 
+      new Date(a.lastMessage?.createdAt || a.updatedAt)
+    );
+    
+    console.log(`Returning ${conversations.length} conversations for designer`);
+    res.json({ success: true, data: conversations });
+    
+  } catch (err) {
+    console.error('getDesignerConversations error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// @desc  Get conversations for seller (ALL projects - shows all customers)
+// @route GET /api/chat/seller/conversations
+// @access Private (seller only)
+exports.getSellerConversations = async (req, res) => {
+  try {
+    console.log('=== getSellerConversations called ===');
+    console.log('User:', req.user.id, 'Role:', req.user.role);
+    
+    // Get seller profile
+    const seller = await Seller.findOne({ userId: req.user.id });
+    if (!seller) {
+      return res.status(404).json({ success: false, error: 'Seller profile not found' });
+    }
+    
+    // Get ALL projects - sellers should see all customers
+    const projects = await Project.find({})
+      .populate('customerId')
+      .sort('-createdAt');
+    
+    console.log(`Found ${projects.length} total projects for seller view`);
+    
+    const conversations = [];
+    const processedKeys = new Set();
+    
+    for (const project of projects) {
+      if (!project.customerId) continue;
+      
+      // Get customer user
+      const customer = await Customer.findById(project.customerId);
+      if (!customer) continue;
+      
+      const customerUser = await User.findById(customer.userId);
+      if (!customerUser) continue;
+      
+      // Find or create chat
+      let chat = await Chat.findOne({ projectId: project._id });
+      
+      if (!chat) {
+        const participants = [customerUser._id, req.user.id];
+        
+        // Add designer if exists
+        if (project.assignedDesigner) {
+          const designer = await Designer.findById(project.assignedDesigner);
+          if (designer && designer.userId) {
+            participants.push(designer.userId);
+          }
+        }
+        
+        chat = await Chat.create({
+          projectId: project._id,
+          projectName: project.title,
+          participants: participants
+        });
+        console.log(`Created new chat for project: ${project.title}`);
+      }
+      
+      // Ensure seller is in participants
+      if (!chat.participants.map(String).includes(req.user.id)) {
+        chat.participants.push(req.user.id);
+        await chat.save();
+      }
+      
+      const key = `${project._id}-${customerUser._id}`;
+      if (!processedKeys.has(key)) {
+        processedKeys.add(key);
+        
+        const msgs = chat.messages || [];
+        const lastMsg = msgs[msgs.length - 1] || null;
+        const unread = msgs.filter(
+          m => m.receiverId && m.receiverId.toString() === req.user.id && !m.read
+        ).length;
+        
+        conversations.push({
+          _id: chat._id,
+          projectId: {
+            _id: project._id,
+            title: project.title,
+            status: project.status
+          },
+          otherUser: {
+            _id: customerUser._id,
+            name: customerUser.name,
+            email: customerUser.email,
+            avatar: customerUser.avatar,
+            role: 'customer'
+          },
+          lastMessage: lastMsg,
+          unreadCount: unread,
+          updatedAt: chat.lastMessage
+        });
+      }
+    }
+    
+    // Sort by last message time
     conversations.sort((a, b) => 
       new Date(b.lastMessage?.createdAt || b.updatedAt) - 
       new Date(a.lastMessage?.createdAt || a.updatedAt)

@@ -55,10 +55,10 @@ const chatService = {
     return response.data;
   },
 
-getSellerConversations: async () => {
-  const response = await api.get('/chat/seller/conversations');
-  return response.data;
-},
+  getSellerConversations: async () => {
+    const response = await api.get('/chat/seller/conversations');
+    return response.data;
+  },
 };
 
 

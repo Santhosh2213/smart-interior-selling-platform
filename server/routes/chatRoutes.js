@@ -9,13 +9,12 @@ const {
   markAsRead,
   getSellerCustomers,
   getDesignerCustomers,
-  getDesignerConversations,
-  getSellerConversations,    // New name
+  getSellerConversations,  // Add this
+  getDesignerConversations, // Add this
   editMessage,
-  deleteMessage 
+  deleteMessage
 } = require('../controllers/chatController');
 
-// All routes require authentication
 router.use(protect);
 
 // Common routes
@@ -26,20 +25,12 @@ router.put('/read/:projectId', markAsRead);
 router.put('/message/:messageId', editMessage);
 router.delete('/message/:messageId', deleteMessage);
 
-// Role-specific routes
-router.get('/seller/customers', authorize('seller'), getSellerCustomers);
-router.get('/designer/customers', authorize('designer'), getDesignerCustomers);
+// Role-specific conversation routes
+router.get('/seller/conversations', authorize('seller'), getSellerConversations);
 router.get('/designer/conversations', authorize('designer'), getDesignerConversations);
 
-// Add this endpoint for fallback when socket fails
-router.post('/join-project', protect, async (req, res) => {
-  try {
-    const { projectId } = req.body;
-    // Just acknowledge - actual socket join happens separately
-    res.json({ success: true, message: 'Project join recorded' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Role-specific customer lists
+router.get('/seller/customers', authorize('seller'), getSellerCustomers);
+router.get('/designer/customers', authorize('designer'), getDesignerCustomers);
 
 module.exports = router;
