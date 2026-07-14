@@ -16,6 +16,7 @@ import {
   EyeIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import api from '../../services/api';
 
 // Style presets
 const STYLE_PRESETS = [
@@ -145,34 +146,29 @@ Generate a high-quality, professional interior design visualization.`;
       setGenerationStage('Calling AI service...');
 
       const serverUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${serverUrl}/designer/ai/generate-image`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          prompt: buildPrompt(),
-          imageBase64: imageBase64,
-          mediaType: sketchFile?.type || 'image/jpeg',
-          roomType: selectedRoom,
-          style: selectedStyle,
-          lighting: selectedLighting,
-          model: 'img4',
-          n: 1,
-          size: '1024x1024',
-          response_format: 'url'
-        }),
-      });
+      setProgress(40);
+setGenerationStage('Calling AI service...');
 
-      setProgress(70);
-      setGenerationStage('Generating image...');
+const response = await api.post(
+  '/designer/ai/generate-image',
+  {
+    prompt: buildPrompt(),
+    imageBase64,
+    mediaType: sketchFile?.type || 'image/jpeg',
+    roomType: selectedRoom,
+    style: selectedStyle,
+    lighting: selectedLighting,
+    model: 'img4',
+    n: 1,
+    size: '1024x1024',
+    response_format: 'url'
+  }
+);
 
-      const data = await response.json();
+setProgress(70);
+setGenerationStage('Generating image...');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Generation failed');
-      }
+const data = response.data;
 
       if (data.success) {
         setProgress(100);

@@ -137,10 +137,17 @@ const generateImage = async (req, res) => {
       });
     }
     
-    res.status(500).json({
+    if (error.response?.status === 502) {
+      return res.status(503).json({
+          success: false,
+          error: "AI Image Generation is temporarily unavailable. Please try again later."
+      });
+  }
+  
+  res.status(500).json({
       success: false,
-      error: error.message || 'Failed to generate image'
-    });
+      error: error.message || "Failed to generate image"
+  });
   }
 };
 

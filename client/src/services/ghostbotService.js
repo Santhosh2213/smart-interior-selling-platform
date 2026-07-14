@@ -3,7 +3,7 @@ import api from './api';
 // Generate image from text prompt
 export const generateImage = async (prompt, options = {}) => {
   try {
-    const response = await api.post('/designer/ai/generate-image', {
+    const response = await api.post('/api/designer/ai/generate-image', {
       prompt,
       negativePrompt: options.negativePrompt || '',
       width: options.width || 1024,
